@@ -11,10 +11,18 @@ const app = express();
 
 app.get('/', (req, res) => {
   // Send a JSON response with a json
-  res.json({ message: `Hello World! app is running in port: ${PORT}` });
+  res.json({  message: `Hello World! app is running in port: ${PORT}`,
+              timestamp: new Date().toISOString(),
+              methods: {users: ['POST /users/create', 'GET /users/reset:id', 'PUT /users/update/password/:id', 'GET /users/:id', 'GET /users', 'GET /users/log/:id', 'POST /users/role/:id', 'GET /users/role/:id', 'POST users/friends/request/:id', 'GET users/friends/', 'GET users/friends/requests/:id', 'POST users/friends/accept/:id', 'POST users/friends/reject/:id', 'GET users/courses/:id', 'GET users/details/:id'],
+                        login: ['GET /login', 'GET /logout'],
+                        courses: ['POST /courses/create', 'POST /courses/section/:id', 'PUT /courses/section/:id', 'POST /courses/evaluation/:id', 'PUT /courses/status/:id', 'GET /courses/students/:id', 'GET /courses/mine', 'POST /courses/clone/:id', 'GET /courses/:id', 'GET /courses', 'POST /courses/enroll/:id', 'GET /courses/enrolled', 'GET /courses/evaluations/:id', 'POST /courses/submit/:id', 'GET /courses/grades/:id'],
+                        messages: ['POST /messages/send/:id', 'GET /messages/inbox/:id', 'POST /messages/conversation/:id']
+                      }
+   });
   // Send a plain text response
   // res.send(`Hello World! app is running in port: ${PORT}`);
 });
+
 // usuarios
 app.post('/users/create', (req, res) => {
   // Logic to create a new user
