@@ -56,7 +56,7 @@ app.get('/users/reset:id', (req, res) => {
   // Logic to reset user password
   res.json({ message: 'Password reset successful' });
 });
-//DONE:
+//TODO:
 app.put('/users/update/password/:id', (req, res) => {
   // Logic to update user information
   res.json({ message: 'User updated successfully' });
