@@ -31,6 +31,12 @@ Request body:
 #### by id 
 Body 
 ```
+"type":"id"
 "id":"#########"
 ```
 #### by properties
+```
+"field":"#########",
+"value":"####"
+```
+o no enviar anada para obtenerlos todos

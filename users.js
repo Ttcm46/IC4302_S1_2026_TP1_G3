@@ -72,9 +72,16 @@ async function searchUserById(id) {
 }
 
 async function searchUser(query) {
-    const session = store.openSession();
-    const users = await session.query({ collection: "user" }).all();
+  if (!store) {
+    throw new Error("Store is not initialized. Call initializeStore() first.");
+  }
+  const session = store.openSession();
+  if (!query) {
+    const users = await session.query({ collection: "@empty" }).all();
     return { success: true, data: users };
+  }
+  const users = await session.query({ collection: "@empty" }).search(query.field, query.value).all();
+  return { success: true, data: users };
 }
 
-export { initializeStore, CreateUser ,searchUserById};
+export { initializeStore, CreateUser ,searchUserById, searchUser};
