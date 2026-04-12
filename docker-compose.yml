@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  ravendb:
+    image: ravendb/ravendb:latest
+    container_name: ravendb
+    ports:
+      - "8080:8080"   # Web UI
+      - "38888:38888" # TCP (optional)
+    environment:
+      - RAVEN_Setup_Mode=None
+      - RAVEN_License_Eula_Accepted=true
+      - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
+    #volumes:
+    #  - ravendb_data:/opt/RavenDB/Server/RavenData
+
+#volumes:
+#  ravendb_data:

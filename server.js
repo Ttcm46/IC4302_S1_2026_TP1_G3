@@ -4,10 +4,20 @@ import redis from 'redis';
 import ravendb  from 'ravendb';
 import neo4j from 'neo4j-driver';
 import mongodb from 'mongodb';
+
+//funcioines externas
+import { CreateUser,
+         initializeStore ,
+         searchUser
+      } from './users.js';
+
+
+
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 const app = express();
+app.use(express.json());
 
 app.get('/', (req, res) => {
   // Send a JSON response with a json
@@ -20,13 +30,32 @@ app.get('/', (req, res) => {
                       }
    });
   // Send a plain text response
-  // res.send(`Hello World! app is running in port: ${PORT}`);
+
+//startupo fucntion to check if all db are up and setup correctlly
+});
+app.post('/startup', async (req, res) => {
+  await initializeStore(process.env.RAVENDB_URL, process.env.RAVENDB_DB);
+  res.json({ message: 'Startup completed'});
 });
 
+
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------
 // usuarios
-app.post('/users/create', (req, res) => {
-  // Logic to create a new user
-  res.json({ message: 'User created successfully' });
+app.get('/test', async (req, res) => {
+    const data = await searchUser(req.body? req.body : null);
+    res.json({ message: 'User search completed',
+                data: data  
+     });
+
+});
+
+app.post('/users/create', async (req, res) => {
+  const data = await CreateUser(req.body);
+  res.json({ message: 'User created successfully',
+              data: data  
+   });
 });
 app.get('/users/reset:id', (req, res) => { 
   // Logic to reset user password
@@ -179,6 +208,7 @@ app.post('/messages/conversation/:id', (req, res) => {
 
 
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
+  await initializeStore(process.env.RAVENDB_URL, process.env.RAVENDB_DB);
 });
