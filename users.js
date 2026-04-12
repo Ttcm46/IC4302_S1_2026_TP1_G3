@@ -10,9 +10,11 @@ async function initializeStore(host = "http://localhost:8080", database = "test"
   if (store) {
     return store;
   }
-  RDBhost = host;
-  RDBdatabase = database;
-  store = new DocumentStore(host, database);
+  const serverUrl = 'http://localhost:8080';
+  const databaseName = 'test';
+
+  store = new DocumentStore([serverUrl], databaseName);
+
   store.initialize();
 
   const record = await store.maintenance.server.send(
@@ -27,100 +29,52 @@ async function initializeStore(host = "http://localhost:8080", database = "test"
   }
 }
 
-/**
- * Runs a sample RavenDB operation:
- * - stores a user
- */
-async function CreateUser(data = {}) {
-  if (!store) {
-    throw new Error("Store is not initialized. Call initializeStore() first.");
-  }
-  const session = store.openSession();
 
-  try {
+
+async function CreateUser(data = {}) {
+    if (!store) {
+        throw new Error("Store is not initialized. Call initializeStore() first.");
+    }
+    const session = store.openSession();
+
     const username = data.username || "anonymous";
-    const salt = crypto.createHash("sha256").update(username).digest("hex");  //string para ensuciar
-    const passwordInput = typeof data.password === "string" ? data.password : "secret"; //si no hay pass creamos uno generico
-    const dob = data.dob ? new Date(data.dob) : null;
-    const correo = data.correo || null;
+    const salt = crypto.createHash("sha256").update(username).digest("hex");
+    const passwordInput = typeof data.password === "string" ? data.password : "secret";
 
     const user = {
       name: data.name || "John Doe",
-      salt,
       username,
-      password: crypto.createHash("sha256").update(passwordInput + salt).digest("hex"), //ensuciar pass con salt
-      dob,
+      salt,
+      password: crypto.createHash("sha256").update(passwordInput + salt).digest("hex"),
+      dob: data.dob ? new Date(data.dob) : null,
       picPath: data.picPath || null,
       typeofuser: typeof data.typeofuser === "string" ? data.typeofuser : "student",
-      correo
+      correo: data.correo || null
     };
 
-    await session.store(user);
+    await session.store(user,"user/");
+    console.log("User stored", user.id);
     await session.saveChanges();
+    console.log("User ID:", session.advanced.getDocumentId(user));
+    console.log("User stored");
+    return { success: true, data: user };
 
 
-    const users = await session
-      .query({ collection: "@empty" })
-      .whereEquals("username", username)
-      .all();
-
-    const plainUsers = Array.isArray(users)
-      ? users.map(u => ({
-          id: u.id,
-          username: u.username,
-          dob: u.dob,
-          name: u.name,
-          typeofuser: u.typeofuser,
-          correo: u.correo
-        }))
-      : [];
-    await session.dispose();
-    return {
-      success: true,
-      data: plainUsers
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
 }
 
-async function searchUser(search = null) {
- if (!store) {
-    throw new Error("Store is not initialized. Call initializeStore() first.");
-  }
-  const session = store.openSession();
-  let users = null
-  let plainUsers = null;
-if (search != null)  {
-  users = await session.query({ collection: "@empty" })
-      .whereEquals(search.field, search.value,search.modifier ? search.modifier : null)
-      .all();
-}else {
-  users = await session.query({ collection: "@empty" }).all();
-}
-  
-  plainUsers = Array.isArray(users)
-    ? users.map(u => ({
-        id: u.id,
-        username: u.username,
-        dob: u.dob,
-        name: u.name,
-        typeofuser: u.typeofuser, 
-        correo: u.correo
 
-    }))
-    : [];
-  await session.dispose();
-  return {
-    success: true,
-    data: plainUsers
-  };
+async function searchUserById(id) {
+    const session = store.openSession();
+    console.log("user/0000000000000000008-A"==id)
+    const user = await session.load("user/0000000000000000008-A");
+
+    return { success: true, data: user };
 }
 
-export { CreateUser,
-        initializeStore,
-        searchUser 
-      };
+async function searchUser(query) {
+    const session = store.openSession();
+    const users = await session.query({ collection: "user" }).all();
+    return { success: true, data: users };
+}
+
+export { initializeStore, CreateUser ,searchUserById};

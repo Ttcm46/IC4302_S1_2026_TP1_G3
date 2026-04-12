@@ -28,23 +28,9 @@ Request body:
 }
 ```
 ### search user 
-[GET: /users ](http://localhost:3000/users)
-Sin Body: busca a todos los usuarios
-
-Con Body buscara a todos los usuarios cuyo field empieza con el valor dado [Documentacion dde busquedas](https://docs.ravendb.net/7.2/indexes/querying/filtering)
+#### by id 
+Body 
 ```
-{
-    "type":"equals"|"whereGreaterThan"|"whereLessThan"|"containsAny"|"containsAll"|"whereStartsWith"|"whereEndsWith"|"whereExists" default: "search",
-  "field": "username"|"name"|"dob"|"picpath"|"typeofuser"|"correo",
-  "value": "####"
-}
+"id":"#########"
 ```
-O busqueda con modificadores para ampliar la busqueda
-```
-{
-    "type":"equals"|"whereGreaterThan"|"whereLessThan"|"containsAny"|"containsAll"|"whereStartsWith"|"whereEndsWith"|"whereExists" default: "search",
-  "field": "username"|"name"|"dob"|"picpath"|"typeofuser"|"correo",
-  "value": "term1 term2",
-  "modifier":"AND"|"OR"
-}
-```
+#### by properties

@@ -8,7 +8,8 @@ import mongodb from 'mongodb';
 //funcioines externas
 import { CreateUser,
          initializeStore ,
-         searchUser
+         //searchUser,
+         searchUserById
       } from './users.js';
 
 
@@ -44,7 +45,7 @@ app.post('/startup', async (req, res) => {
 //------------------------------------------------------------------------------------------------------------------------------------------------
 // usuarios
 app.get('/test', async (req, res) => {
-    const data = await searchUser(req.body? req.body : null);
+    const data = await searchUserById(req.params.id);
     res.json({ message: 'User search completed',
                 data: data  
      });
@@ -65,13 +66,11 @@ app.put('/users/update/password/:id', (req, res) => {
   // Logic to update user information
   res.json({ message: 'User updated successfully' });
 });
-app.get('/users/:id', (req, res) => {
-  // Logic to get user details by ID
-  res.json({ message: `User details for ID: ${req.params.id}` });
-});
-app.get('/users', (req, res) => {
-  // Logic to get all users
-  res.json({ message: 'List of all users' });
+app.get('/users', async (req, res) => {
+  const data = await searchUserById(req.body.id);
+    res.json({ message: 'User search completed',
+                data: data  
+     });
 });
 app.get('/users/log/:id', (req, res) => {
   // Logic to get user login history
