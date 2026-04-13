@@ -12,6 +12,7 @@ import { CreateUser,
 
 
 dotenv.config();
+//constantes de cleintes de acceso de BD para reciclarlos segun se necesite
 let store = null;
 let RDclient = null;
 
@@ -240,5 +241,7 @@ app.post('/messages/conversation/:id', (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
-  store = await initializeStore(process.env.RAVENDB_URL || "http://localhost:8080", process.env.RAVENDB_DB || "test");
+  tmp = await initializeStore(process.env.RAVENDB_URL || "http://localhost:8080", process.env.RAVENDB_DB || "test");
+  store = tmp[0];
+  RDclient =tmp[1];
 });

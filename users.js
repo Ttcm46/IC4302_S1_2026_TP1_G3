@@ -5,10 +5,8 @@ import redis from "redis";
 
 
 // Create and initialize the store once y asegurar creacion de bd
-async function initializeStore(host = "http://localhost:8080", database = "test",store) {
-  if (store) {
-    return store;
-  }
+async function initializeStore(host = "http://localhost:8080", database = "test") {
+  const store=null;
   const serverUrl = host;
   const databaseName = database;
 
@@ -26,7 +24,11 @@ async function initializeStore(host = "http://localhost:8080", database = "test"
       new CreateDatabaseOperation({ databaseName: database })
     );
   }
-  return store;
+  const RDclient = createClient();
+  RDclient.on('error', err => console.log('Redis Client Error', err));
+  RDclient.connect();
+
+  return [store,RDclient];
 }
 
 
