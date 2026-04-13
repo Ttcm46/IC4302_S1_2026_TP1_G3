@@ -1,9 +1,5 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import redis from 'redis';
-import ravendb  from 'ravendb';
-import neo4j from 'neo4j-driver';
-import mongodb from 'mongodb';
 
 //funcioines externas
 import { CreateUser,
