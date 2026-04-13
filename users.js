@@ -1,12 +1,11 @@
 import { DocumentStore, GetDatabaseRecordOperation, CreateDatabaseOperation } from "ravendb";
 import crypto from "crypto";
+import redis from "redis";
 
-let store = null;
-let RDBhost;
-let RDBdatabase;
+
 
 // Create and initialize the store once y asegurar creacion de bd
-async function initializeStore(host = "http://localhost:8080", database = "test") {
+async function initializeStore(host = "http://localhost:8080", database = "test",store) {
   if (store) {
     return store;
   }
@@ -27,11 +26,12 @@ async function initializeStore(host = "http://localhost:8080", database = "test"
       new CreateDatabaseOperation({ databaseName: database })
     );
   }
+  return store;
 }
 
 
 
-async function CreateUser(data = {}) {
+async function CreateUser(data = {},store) {
     if (!store) {
         throw new Error("Store is not initialized. Call initializeStore() first.");
     }
@@ -63,14 +63,14 @@ async function CreateUser(data = {}) {
 }
 
 
-async function searchUserById(id) {
+async function searchUserById(id,store) {
     const session = store.openSession();
     const user = await session.load(id);
 
     return { success: true, data: user };
 }
 
-async function searchUser(query) {
+async function searchUser(query,store) {
   if (!store) {
     throw new Error("Store is not initialized. Call initializeStore() first.");
   }
@@ -83,7 +83,7 @@ async function searchUser(query) {
   return { success: true, data: users };
 }
 
-async function ValidateUser(query) {
+async function ValidateUser(query,store) {
   const session = store.openSession();
   const user = await session.query({ collection: "@empty" }).search("username", query.username).firstOrNull();
   const tmp = crypto.createHash("sha256").update(query.password + user.salt).digest("hex");

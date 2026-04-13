@@ -16,6 +16,8 @@ import { CreateUser,
 
 
 dotenv.config();
+let store = null;
+let RDclient = null;
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -42,7 +44,7 @@ app.get('/', (req, res) => {
 // usuarios
 //DONE:
 app.post('/users/create', async (req, res) => {
-  const data = await CreateUser(req.body);
+  const data = await CreateUser(req.body,store);
   res.json({ message: 'User created successfully',
               data: data  
    });
@@ -62,7 +64,7 @@ app.put('/users/update/password/:id', (req, res) => {
 app.get('/users', async (req, res) => {
 
   if (req.body && req.body.type=="id"){
-  const data = await searchUserById(req.body.id);
+  const data = await searchUserById(req.body.id,store);
     res.json({ message: 'User search completed',
                 data: data  
      });
@@ -129,7 +131,7 @@ app.get('users/details/:id', (req, res) => {
 //login logout
 //TODO: lockout logic
 app.get('/login', async (req, res) => {
-  msg = await ValidateUser(req.body);
+  msg = await ValidateUser(req.body,store);
   res.json(msg);
 });
 //TODO:
@@ -242,5 +244,5 @@ app.post('/messages/conversation/:id', (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
-  await initializeStore(process.env.RAVENDB_URL || "http://localhost:8080", process.env.RAVENDB_DB || "test");
+  store = await initializeStore(process.env.RAVENDB_URL || "http://localhost:8080", process.env.RAVENDB_DB || "test");
 });
