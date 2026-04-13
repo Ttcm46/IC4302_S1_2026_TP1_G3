@@ -40,3 +40,12 @@ Body
 "value":"####"
 ```
 o no enviar anada para obtenerlos todos
+
+## Login
+[Request body](http://localhost:3000/login)
+```
+{
+  "username":"xyz",
+  "password":"xyz"
+}
+```

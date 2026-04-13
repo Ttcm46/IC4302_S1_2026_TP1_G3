@@ -35,11 +35,6 @@ app.get('/', (req, res) => {
 
 //startupo fucntion to check if all db are up and setup correctlly
 });
-app.post('/startup', async (req, res) => {
-  await initializeStore(process.env.RAVENDB_URL, process.env.RAVENDB_DB);
-  res.json({ message: 'Startup completed'});
-});
-
 
 
 
@@ -247,5 +242,5 @@ app.post('/messages/conversation/:id', (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
-  await initializeStore(process.env.RAVENDB_URL, process.env.RAVENDB_DB);
+  await initializeStore(process.env.RAVENDB_URL || "http://localhost:8080", process.env.RAVENDB_DB || "test");
 });
