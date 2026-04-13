@@ -10,8 +10,8 @@ async function initializeStore(host = "http://localhost:8080", database = "test"
   if (store) {
     return store;
   }
-  const serverUrl = 'http://localhost:8080';
-  const databaseName = 'test';
+  const serverUrl = host;
+  const databaseName = database;
 
   store = new DocumentStore([serverUrl], databaseName);
 
@@ -65,8 +65,7 @@ async function CreateUser(data = {}) {
 
 async function searchUserById(id) {
     const session = store.openSession();
-    console.log("user/0000000000000000008-A"==id)
-    const user = await session.load("user/0000000000000000008-A");
+    const user = await session.load(id);
 
     return { success: true, data: user };
 }
@@ -84,4 +83,26 @@ async function searchUser(query) {
   return { success: true, data: users };
 }
 
-export { initializeStore, CreateUser ,searchUserById, searchUser};
+async function ValidateUser(query) {
+  const session = store.openSession();
+  const user = await session.query({ collection: "@empty" }).search("username", query.username).firstOrNull();
+  const tmp = crypto.createHash("sha256").update(query.password + user.salt).digest("hex");
+  if (tmp == user.password) {
+    return { success: true, 
+      message: `Welcome ${user.name}`,
+      user: {
+        name: user.name,
+        username: user.username,  
+        dob: user.dob,
+        picPath: user.picPath,
+        typeofuser: user.typeofuser,
+        correo: user.correo,
+        id: user.id}
+     };
+  } else {
+    //TODO: Implementar intentos fallidos y bloqueo de cuenta
+    return { success: false, message: "Invalid username or password" };
+  }
+};
+
+export { initializeStore, CreateUser ,searchUserById, searchUser, ValidateUser};

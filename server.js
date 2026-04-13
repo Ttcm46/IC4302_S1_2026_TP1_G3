@@ -9,7 +9,8 @@ import mongodb from 'mongodb';
 import { CreateUser,
          initializeStore ,
          searchUser,
-         searchUserById
+         searchUserById,
+         ValidateUser
       } from './users.js';
 
 
@@ -131,10 +132,10 @@ app.get('users/details/:id', (req, res) => {
 //TODO:
 
 //login logout
-//TODO:
-app.get('/login', (req, res) => {
-  // Logic for user login, intentos fallidos y bloqueo de cuenta 
-  res.json({ message: 'Login successful' });
+//TODO: lockout logic
+app.get('/login', async (req, res) => {
+  msg = await ValidateUser(req.body);
+  res.json(msg);
 });
 //TODO:
 app.get('/logout', (req, res) => {  // Logic for user logout
