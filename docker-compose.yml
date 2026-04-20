@@ -22,7 +22,7 @@ services:
     image: redis/redisinsight:latest
     container_name: redisinsight
     ports:
-      - "0:5540" 
+      - "32771:5540" 
 
 #volumes:
 #  ravendb_data:

@@ -63,3 +63,20 @@ o con token de inicio de sesion
   "token":"#########################"
 }
 ```
+## Resetting / updating passwords
+### Reset password
+el metodo asigan un nuevo password aleatorio, devuelve estado y nuevio password
+```
+{
+  "username": "#############"
+}
+```
+
+### Update Password
+```
+{
+  "id": "#####",
+  "newpassword":"#############", //nuevo password
+  "password":"##########" //viejo para confirmar
+}
+```

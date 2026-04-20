@@ -9,8 +9,12 @@ import {
   searchUser,
   searchUserById,
   ValidateUser,
+  getUser,
+  updateUserPassword,
+  loadUser
 } from "./users.js";
 import { RedisinitializeStore } from "./redisStore.js";
+import { get } from "http";
 
 dotenv.config();
 //constantes de cleintes de acceso de BD para reciclarlos segun se necesite
@@ -82,15 +86,27 @@ app.post("/users/create", async (req, res) => {
   res.json({ message: "User created successfully", data: data });
 });
 
-//TODO:
-app.get("/users/reset:id", (req, res) => {
-  // Logic to reset user password
-  res.json({ message: "Password reset successful" });
+//DONEs: password reset
+app.post("/users/reset", async (req, res) => {
+  let tmp = await getUser(req.body.username, store);
+    if (!tmp) {
+      return res.json({ success: false, message: "User not found" });
+    }
+  tmp = await loadUser(tmp.data.id, store);
+  const tmppass = crypto.createHash("sha256").update(req.body.username + new Date()).digest("hex").slice(0, 8);
+
+  await updateUserPassword(tmp.data.id, tmppass, store);
+
+  const result = await loadUser(req.body.username, store);
+  RDclient.del(tmp.data.id); // Invalidate any existing sessions for the user
+  
+  res.json({ message: "Password reset successful, you temporal pass word is ", temporaryPassword: tmppass });
 });
 //TODO:
+
 app.put("/users/update/password/:id", (req, res) => {
-  // Logic to update user information
-  res.json({ message: "User updated successfully" });
+    updateUserPassword(req.params.id, req.body.newpassword, store);
+    res.json({ message: "Password updated successfully" });
 });
 
 //DONE:

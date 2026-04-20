@@ -99,5 +99,26 @@ async function ValidateUser(query,store) {
     return { success: false, message: "Invalid username or password", user: user, uid: user.id };
   }
 };
+async function getUser(username,store) {
+  const session = store.openSession();
+  const user = await session.query({ collection: "@empty" }).search("username", username).firstOrNull();
+  return { success: true, data: user };
+}
+async function loadUser(id,store) {
+  const session = store.openSession();
+  const user = await session.load(id);
+  return { success: true, data: user };
+}
 
-export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser};
+async function updateUserPassword(id, password, store) {
+  const session = store.openSession();
+  const user = await session.load(id);
+  if (!user) {
+    return { success: false, message: "User not found" };
+  }
+  user.password = crypto.createHash("sha256").update(password + user.salt).digest("hex");
+  await session.saveChanges();
+  return { success: true, data: user };
+}
+
+export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser, getUser, updateUserPassword, loadUser};
