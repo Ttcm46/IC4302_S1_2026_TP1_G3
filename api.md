@@ -56,3 +56,10 @@ o con token de inicio de sesion
   "token":"#########################"
 }
 ```
+## Logout
+[Request body](http://localhost:3000/logout)
+```
+{
+  "token":"#########################"
+}
+```
