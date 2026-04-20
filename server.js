@@ -164,7 +164,7 @@ app.get("users/details/:id", (req, res) => {
 //TODO:
 
 //login logout
-//TEST:
+//DONE: 
 app.get("/login", async (req, res) => {
   let msg = null;
   if (req.body.token) {
@@ -270,7 +270,7 @@ app.get("/login", async (req, res) => {
   res.json(msg);
 });
 
-//TODO:
+//DONE:
 app.get("/logout", (req, res) => {
   // Logic for user logout
   if (req.body.token) {
