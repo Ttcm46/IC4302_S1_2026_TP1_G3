@@ -102,7 +102,7 @@ app.post("/users/reset", async (req, res) => {
   
   res.json({ message: "Password reset successful, you temporal pass word is ", temporaryPassword: tmppass });
 });
-//TODO:
+//DONE: update password                   TEST: untested
 
 app.put("/users/update/password/:id", (req, res) => {
     updateUserPassword(req.params.id, req.body.newpassword, store);
