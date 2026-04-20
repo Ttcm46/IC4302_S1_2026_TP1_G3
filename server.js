@@ -1,13 +1,15 @@
-import express from 'express';
+import express, { json } from 'express';
 import dotenv from 'dotenv';
+import crypto from "crypto";
 
 //funcioines externas
 import { CreateUser,
-         initializeStore ,
+         RDBinitializeStore ,
          searchUser,
          searchUserById,
          ValidateUser
       } from './users.js';
+import { RedisinitializeStore } from './redisStore.js';
 
 
 
@@ -46,6 +48,7 @@ app.post('/users/create', async (req, res) => {
               data: data  
    });
 });
+
 //TODO:
 app.get('/users/reset:id', (req, res) => { 
   // Logic to reset user password
@@ -126,13 +129,69 @@ app.get('users/details/:id', (req, res) => {
 //TODO:
 
 //login logout
-//TODO: lockout logic
+//TEST: 
 app.get('/login', async (req, res) => {
-  msg = await ValidateUser(req.body,store);
+  let msg = null;
+  if (req.body.token) {
+    //validate token on redis here
+    const token = await RDclient.get(req.body.token)
+    if (token && JSON.parse(token).login) {
+      RDclient.expire(req.body.token, 60 * 60); // Refresh token expiration 1 hr
+      msg = { success: true, message: `Token valid, welcome back!` };
+    }
+  }
+  else { //no hay token, validar credenciales6
+    
+    const token = crypto.createHash("sha256").update(req.body.username).digest("hex");
+    //validar que no haya lockout
+    let tocheck = await RDclient.get(token);
+    if (tocheck) {
+      tocheck = JSON.parse(tocheck);
+      if (tocheck.lockout) {
+        return res.json({ success: false, message: "Account locked due to too many failed login attempts" });
+      }
+    }
+    //no hay lockout, validar login
+    msg = await ValidateUser(req.body,store);
+    
+      //malas creds
+    if (msg.success===false && msg.user && msg.uid) { //usuario existe pero password es incorrecto si no exixte pues no hacemos nada
+      //increment failed login attempts on redis here and check if it reaches the lockout threshold
+      const value = await RDclient.get(token);
+      if (value!= null) {
+        const data = JSON.parse(value);
+        data.attempts += 1;
+        if (data.attempts >= 5) {
+          RDclient.set(token, JSON.stringify({ lastLogin: new Date(), attempts: data.attempts, lockout: true,login: false }), { EX: 60 * 60 }); // Lock account for 1 hour
+          return res.json({ success: false, message: "Account locked due to too many failed login attempts" });
+          //lockout
+        }
+        RDclient.set(token, JSON.stringify({ lastLogin: new Date(), attempts: data.attempts, lockout: false, login: false }), { EX: 60 * 60 }); // Update failed attempts with expiration of 1 hour
+        return res.json({ success: false, message: "Invalid username or password" });
+      }
+      else {
+        RDclient.set(token, JSON.stringify({ lastLogin: new Date(), attempts: 1, lockout: false, login: false }), { EX: 60 * 60 });
+        return res.json({ success: false, message: "Invalid username or password" });
+      }    
+
+    }
+      //creds validas
+    else{
+      await RDclient.set(token, JSON.stringify({ lastLogin: new Date(), attempts: 0, lockout: false ,token: token, login: true }), { EX: 60 * 60 }); // Set token with expiration of 1 hour
+      msg.token = token;
+    }
+  }
   res.json(msg);
-});
+  }
+);
+
 //TODO:
 app.get('/logout', (req, res) => {  // Logic for user logout
+  if (req.body.token) {
+    //invalidate token on redis here
+    RDclient.del(req.body.token);
+  }
+
   res.json({ message: 'Logout successful' });
 });
 
@@ -239,9 +298,22 @@ app.post('/messages/conversation/:id', (req, res) => {
 
 
 
+app.post('/test', async (req, res) => {
+  const data = {msg: "This is a test value", timestamp: new Date()};
+  const json = JSON.stringify(data);
+  RDclient.set("test", JSON.stringify(data));
+  const value = await RDclient.get("test");
+  res.json({ message: 'Test completed successfully', data: JSON.parse(value) });
+});
+
 app.listen(PORT, async () => {
+  
   console.log(`Server is running on port http://localhost:${PORT}`);
-  tmp = await initializeStore(process.env.RAVENDB_URL || "http://localhost:8080", process.env.RAVENDB_DB || "test");
-  store = tmp[0];
-  RDclient =tmp[1];
+  let tmp = await RDBinitializeStore(process.env.RAVENDB_URL || "http://localhost:8080", process.env.RAVENDB_DB || "test");
+  store = tmp;
+  console.log("RavenDB store initialized");
+  tmp = await RedisinitializeStore(process.env.REDIS_URL || "http://localhost:6379", process.env.REDIS_DB || "0");
+  RDclient = tmp;
+  console.log("Redis client initialized");
+
 });

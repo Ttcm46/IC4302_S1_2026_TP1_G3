@@ -49,3 +49,10 @@ o no enviar anada para obtenerlos todos
   "password":"xyz"
 }
 ```
+
+o con token de inicio de sesion
+```
+{
+  "token":"#########################"
+}
+```

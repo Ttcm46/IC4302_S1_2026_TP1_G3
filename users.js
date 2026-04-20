@@ -5,30 +5,24 @@ import redis from "redis";
 
 
 // Create and initialize the store once y asegurar creacion de bd
-async function initializeStore(host = "http://localhost:8080", database = "test") {
-  const store=null;
+async function RDBinitializeStore(host = "http://localhost:8080", database = "test") {
   const serverUrl = host;
   const databaseName = database;
-
-  store = new DocumentStore([serverUrl], databaseName);
+  
+  let store = new DocumentStore([serverUrl], databaseName);
 
   store.initialize();
-
   const record = await store.maintenance.server.send(
-    new GetDatabaseRecordOperation(database)
-  );
-
-  if (!record) {
-    console.log(`Database '${database}' does not exist. Creating...`);
-    await store.maintenance.server.send(
-      new CreateDatabaseOperation({ databaseName: database })
-    );
-  }
-  const RDclient = createClient();
-  RDclient.on('error', err => console.log('Redis Client Error', err));
-  RDclient.connect();
-
-  return [store,RDclient];
+        new GetDatabaseRecordOperation(database)
+      );
+    
+      if (!record) {
+        console.log(`Database '${database}' does not exist. Creating...`);
+        await store.maintenance.server.send(
+          new CreateDatabaseOperation({ databaseName: database })
+        );
+      }
+  return store;
 }
 
 
@@ -102,9 +96,8 @@ async function ValidateUser(query,store) {
         id: user.id}
      };
   } else {
-    //TODO: Implementar intentos fallidos y bloqueo de cuenta
-    return { success: false, message: "Invalid username or password" };
+    return { success: false, message: "Invalid username or password", user: user, uid: user.id };
   }
 };
 
-export { initializeStore, CreateUser ,searchUserById, searchUser, ValidateUser};
+export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser};
