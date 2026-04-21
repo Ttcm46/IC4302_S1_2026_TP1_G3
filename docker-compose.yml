@@ -18,11 +18,20 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
-  redisinsight:
+  redisinsight: ##UI para ver la informacion de redis, no es necesario pero es util
     image: redis/redisinsight:latest
     container_name: redisinsight
     ports:
       - "32771:5540" 
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j
+    ports:
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
+    environment:
+      - NEO4J_AUTH=none
+  
 
 #volumes:
 #  ravendb_data:
