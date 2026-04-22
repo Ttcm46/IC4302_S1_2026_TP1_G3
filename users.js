@@ -1,6 +1,6 @@
 import { DocumentStore, GetDatabaseRecordOperation, CreateDatabaseOperation } from "ravendb";
 import crypto from "crypto";
-import redis from "redis";
+import { createClient } from "redis";
 
 
 
