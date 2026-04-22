@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   ravendb:
     image: ravendb/ravendb:latest
@@ -11,6 +9,12 @@ services:
       - RAVEN_Setup_Mode=None
       - RAVEN_License_Eula_Accepted=true
       - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/stats"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
     #volumes:
     #  - ravendb_data:/opt/RavenDB/Server/RavenData
   redis:
@@ -31,7 +35,18 @@ services:
       - "7687:7687" # Bolt
     environment:
       - NEO4J_AUTH=none
-  
+  api:
+    build: .
+    container_name: api
+    depends_on:
+      ravendb:
+        condition: service_healthy
+    environment:
+      - PORT=3000
+      - RAVENDB_URL=http://ravendb:8080
+      - RAVENDB_DB=test
+    ports:
+      - "3000:3000"
 
 #volumes:
-#  ravendb_data:
+#  ravendb_data: # TODO
