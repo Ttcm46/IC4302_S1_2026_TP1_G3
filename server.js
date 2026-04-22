@@ -11,15 +11,28 @@ import {
   ValidateUser,
   getUser,
   updateUserPassword,
-  loadUser
+  loadUser,
 } from "./users.js";
 import { RedisinitializeStore } from "./redisStore.js";
+import {
+  connectToNeo4j,
+  createClass,
+  addEvaluation,
+  addStudent,
+  addSection,
+  getClassDetails,
+  getEvaluations,
+  getStudents,
+  getSections,
+  sendSampleData,
+} from "./clases.js";
 import { get } from "http";
 
 dotenv.config();
 //constantes de cleintes de acceso de BD para reciclarlos segun se necesite
 let store = null;
 let RDclient = null;
+let neo4jDriver = null;
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -89,24 +102,31 @@ app.post("/users/create", async (req, res) => {
 //DONEs: password reset
 app.post("/users/reset", async (req, res) => {
   let tmp = await getUser(req.body.username, store);
-    if (!tmp) {
-      return res.json({ success: false, message: "User not found" });
-    }
+  if (!tmp) {
+    return res.json({ success: false, message: "User not found" });
+  }
   tmp = await loadUser(tmp.data.id, store);
-  const tmppass = crypto.createHash("sha256").update(req.body.username + new Date()).digest("hex").slice(0, 8);
+  const tmppass = crypto
+    .createHash("sha256")
+    .update(req.body.username + new Date())
+    .digest("hex")
+    .slice(0, 8);
 
   await updateUserPassword(tmp.data.id, tmppass, store);
 
   const result = await loadUser(req.body.username, store);
   RDclient.del(tmp.data.id); // Invalidate any existing sessions for the user
-  
-  res.json({ message: "Password reset successful, you temporal pass word is ", temporaryPassword: tmppass });
+
+  res.json({
+    message: "Password reset successful, you temporal pass word is ",
+    temporaryPassword: tmppass,
+  });
 });
 //DONE: update password                   TEST: untested
 
 app.put("/users/update/password/:id", (req, res) => {
-    updateUserPassword(req.params.id, req.body.newpassword, store);
-    res.json({ message: "Password updated successfully" });
+  updateUserPassword(req.params.id, req.body.newpassword, store);
+  res.json({ message: "Password updated successfully" });
 });
 
 //DONE:
@@ -180,7 +200,7 @@ app.get("users/details/:id", (req, res) => {
 //TODO:
 
 //login logout
-//DONE: 
+//DONE:
 app.get("/login", async (req, res) => {
   let msg = null;
   if (req.body.token) {
@@ -406,16 +426,25 @@ app.post("/test", async (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
-  let tmp = await RDBinitializeStore(
+
+  store  = await RDBinitializeStore(
     process.env.RAVENDB_URL || "http://localhost:8080",
     process.env.RAVENDB_DB || "test",
   );
-  store = tmp;
   console.log("RavenDB store initialized");
-  tmp = await RedisinitializeStore(
+
+  RDclient = await RedisinitializeStore(
     process.env.REDIS_URL || "http://localhost:6379",
     process.env.REDIS_DB || "0",
   );
-  RDclient = tmp;
   console.log("Redis client initialized");
+
+  neo4jDriver = connectToNeo4j(
+    process.env.NEO4J_URL || "bolt://localhost:7687",
+    // process.env.NEO4J_USER || "neo4j",
+    // process.env.NEO4J_PASSWORD || "password"
+  );
+  console.log("Neo4j driver initialized");
+
+  //await sendSampleData(neo4jDriver);
 });
