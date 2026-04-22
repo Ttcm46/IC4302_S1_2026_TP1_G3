@@ -110,15 +110,22 @@ async function loadUser(id,store) {
   return { success: true, data: user };
 }
 
-async function updateUserPassword(id, password, store) {
+async function updateUser(id, data, store) {
   const session = store.openSession();
   const user = await session.load(id);
   if (!user) {
     return { success: false, message: "User not found" };
   }
-  user.password = crypto.createHash("sha256").update(password + user.salt).digest("hex");
+  user.name= data.name || user.name
+  user.username=data.username || user.username
+  user.dob=data.dob || user.dob
+  user.picPath=data.picPath ||user.picPath
+  user.typeofuser=data.typeofuser||user.typeofuser
+  user.correo=data.correo||user.correo
+  user.password= data.password ? crypto.createHash("sha256").update(data.password + user.salt).digest("hex") : user.password
+
   await session.saveChanges();
   return { success: true, data: user };
 }
 
-export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser, getUser, updateUserPassword, loadUser};
+export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser, getUser, updateUser, loadUser};
