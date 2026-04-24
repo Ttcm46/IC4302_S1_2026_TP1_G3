@@ -88,11 +88,13 @@ services:
       redis-node-1:6379 redis-node-2:6379 redis-node-3:6379 
       --cluster-replicas 0 --cluster-yes"
 
-  # redis:
-  #   image: redis:latest
-  #   container_name: redis
-  #   ports:
-  #     - "6379:6379"
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
   redisinsight: ##UI
     networks:
       - app-network

@@ -45,6 +45,27 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
 
+// Global error handler middleware
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err.message);
+  res.status(500).json({
+    success: false,
+    message: "Internal server error",
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error("Uncaught Exception:", error);
+  process.exit(1);
+});
+
 app.get("/", (req, res) => {
   // Send a JSON response with a json
   res.json({
@@ -54,42 +75,43 @@ app.get("/", (req, res) => {
       users: [
         "POST /users/create",
         "GET /users/reset",
-        "PUT /users/update/password/",
+        "PUT /users/update/password/:id",
         "GET /users/",
         "GET /users",
-        "GET /users/log/",
-        "POST /users/role/",
-        "GET /users/role/",
-        "POST users/friends/request/",
-        "GET users/friends/",
-        "GET users/friends/requests/",
-        "POST users/friends/accept/",
-        "POST users/friends/reject/",
-        "GET users/courses/",
-        "GET users/details/",
+        "GET /users/log/:id",
+        "POST /users/role/:id",
+        "GET /users/role/:id",
+        "POST /users/friends/request/:id",
+        "GET /users/friends/:id",
+        "GET /users/friends/requests/:id",
+        "POST /users/friends/accept/:id",
+        "POST /users/friends/reject/:id",
+        "GET /users/courses/:id",
+        "GET /users/details/:userId",
       ],
       login: ["GET /login", "GET /logout"],
       courses: [
         "POST /courses/create",
-        "POST /courses/section/",
-        "PUT /courses/section/",
-        "POST /courses/evaluation/",
-        "PUT /courses/status/",
-        "GET /courses/students/",
+        "POST /courses/section/:id",
+        "PUT /courses/section/:classCode",
+        "POST /courses/evaluation/:classCode",
+        "PUT /courses/status/:id",
+        "POST /courses/students/:classCode",
+        "GET /courses/students/:classCode",
         "GET /courses/mine",
-        "POST /courses/clone/",
-        "GET /courses/",
+        "POST /courses/clone/:sourceClassCode",
+        "GET /courses/:classCode",
         "GET /courses",
-        "POST /courses/enroll/",
+        "POST /courses/enroll/:classCode",
         "GET /courses/enrolled",
-        "GET /courses/evaluations/",
-        "POST /courses/submit/",
-        "GET /courses/grades/",
+        "GET /courses/evaluations/:classCode",
+        "POST /courses/submit/:id",
+        "GET /courses/grades/:id",
       ],
       messages: [
-        "POST /messages/send/",
-        "GET /messages/inbox/",
-        "POST /messages/conversation/",
+        "POST /messages/send/:id",
+        "GET /messages/inbox/:id",
+        "POST /messages/conversation/:id",
       ],
     },
   });
@@ -102,8 +124,20 @@ app.get("/", (req, res) => {
 // usuarios
 //DONE:
 app.post("/users/create", async (req, res) => {
-  const data = await CreateUser(req.body, store);
-  res.json({ message: "User created successfully", data: data });
+  try {
+    const data = await CreateUser(req.body, store);
+    if (!data) {
+      return res.status(400).json({ success: false, message: "User creation failed" });
+    }
+    res.json({ message: "User created successfully", data: data });
+  } catch (error) {
+    console.error("Error creating user:", error.message);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to create user. Please try again.", 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
+  }
 });
 
 //DONE: password reset
@@ -131,7 +165,7 @@ app.post("/users/reset", async (req, res) => {
   });
 });
 //DONE: update password                   TEST: untested
-app.put("/users/update/password/", (req, res) => {
+app.put("/users/update/password/:id", (req, res) => {
   updateUser(req.params.id, {password:req.body.newpassword}, store);
   res.json({ message: "Password updated successfully" });
 });
@@ -147,49 +181,49 @@ app.get("/users", async (req, res) => {
   }
 });
 //TODO:
-app.get("/users/log/", (req, res) => {
+app.get("/users/log/:id", (req, res) => {
   const uid = req.params.id
   // Logic to get user login history
   res.json({ message: `Login history for user ID: ${req.params.id}` });
 });
 //TEST:
-app.post("/users/role/", (req, res) => {
+app.post("/users/role/:id", (req, res) => {
   // Logic to assign a role to a user
   updateUser(req.params.id, {password:req.body.newrole}, store)
   res.json({ message: `Role assigned to user ID: ${req.params.id}` });
 });
 //TEST:
-app.get("/users/role/", async (req, res) => {
+app.get("/users/role/:id", async (req, res) => {
   // Logic to get the role of a user
   const tmp = await loadUser(req.params.id, store);
   res.json({ message: `Role for user ID: ${req.params.id}`, role: tmp.data?.typeofuser });
 });
 //TODO:
-app.post("/users/friends/request/", (req, res) => {
+app.post("/users/friends/request/:id", (req, res) => {
   // Logic to send a friend request
   res.json({ message: `Friend request sent to user ID: ${req.params.id}` });
 });
 //TODO:
-app.get("/users/friends/", (req, res) => {
+app.get("/users/friends/:id", (req, res) => {
   // Logic to get the friends list of a user
   res.json({ message: `Friends list for user ID: ${req.params.id}` });
 });
 //TODO:
-app.get("/users/friends/requests/", (req, res) => {
+app.get("/users/friends/requests/:id", (req, res) => {
   // Logic to get pending friend requests for a user
   res.json({
     message: `Pending friend requests for user ID: ${req.params.id}`,
   });
 });
 //TODO:
-app.post("/users/friends/accept/", (req, res) => {
+app.post("/users/friends/accept/:id", (req, res) => {
   // Logic to accept a friend request
   res.json({
     message: `Friend request accepted for user ID: ${req.params.id}`,
   });
 });
 //TODO:
-app.post("/users/friends/reject/", (req, res) => {
+app.post("/users/friends/reject/:id", (req, res) => {
   // Logic to reject a friend request
   res.json({
     message: `Friend request rejected for user ID: ${req.params.id}`,
@@ -212,8 +246,8 @@ app.get(["/users/courses", "/users/courses/"], async (req, res) => {
 });
 
 //TEST:
-app.get("/users/courses/", async (req, res) => {
-  const id = req.params.studentId;
+app.get("/users/courses/:id", async (req, res) => {
+  const id = req.params.id;
   const tmp = await getEnrolledClasses(neo4jDriver, id);
   res.json({
     message: `Courses for user ID: ${id}`,
@@ -222,7 +256,7 @@ app.get("/users/courses/", async (req, res) => {
 });
 
 //TEST: upgrade: add course data and firends
-app.get("/users/details/", async (req, res) => {
+app.get("/users/details/:userId", async (req, res) => {
   const id = req.params.userId;
   const tmp = await loadUser(id, store);
   const tmpClss = await getEnrolledClasses(neo4jDriver, id);
@@ -233,136 +267,205 @@ app.get("/users/details/", async (req, res) => {
 //login logout
 //DONE:
 app.get("/login", async (req, res) => {
-  let msg = null;
-  if (req.body.token) {
-    //validate token on redis here
-    const token = await RDclient.get(req.body.token);
-    if (token && JSON.parse(token).login) {
-      RDclient.expire(req.body.token, 60 * 60); // Refresh token expiration 1 hr
-      msg = { success: true, message: `Token valid, welcome back!` };
-    }
-  } else {
-    //no hay token, validar credenciales6
-
-    const token = crypto
-      .createHash("sha256")
-      .update(req.body.username)
-      .digest("hex");
-    //validar que no haya lockout
-    let tocheck = await RDclient.get(token);
-    if (tocheck) {
-      tocheck = JSON.parse(tocheck);
-      if (tocheck.lockout) {
-        return res.json({
-          success: false,
-          message: "Account locked due to too many failed login attempts",
+  try {
+    let msg = null;
+    if (req.body.token) {
+      //validate token on redis here
+      try {
+        const token = await RDclient.get(req.body.token);
+        if (token && JSON.parse(token).login) {
+          await RDclient.expire(req.body.token, 60 * 60); // Refresh token expiration 1 hr
+          msg = { success: true, message: `Token valid, welcome back!` };
+        }
+      } catch (redisError) {
+        console.error("Redis error during token validation:", redisError);
+        return res.status(500).json({ 
+          success: false, 
+          message: "Session validation error. Please try again." 
         });
       }
-    }
-    //no hay lockout, validar login
-    msg = await ValidateUser(req.body, store);
+    } else {
+      //no hay token, validar credenciales
 
-    //malas creds
-    if (msg.success === false && msg.user && msg.uid) {
-      //usuario existe pero password es incorrecto si no exixte pues no hacemos nada
-      //increment failed login attempts on redis here and check if it reaches the lockout threshold
-      const value = await RDclient.get(token);
-      if (value != null) {
-        const data = JSON.parse(value);
-        data.attempts += 1;
-        if (data.attempts >= 5) {
-          RDclient.set(
+      const token = crypto
+        .createHash("sha256")
+        .update(req.body.username)
+        .digest("hex");
+      
+      //validar que no haya lockout
+      try {
+        let tocheck = await RDclient.get(token);
+        if (tocheck) {
+          tocheck = JSON.parse(tocheck);
+          if (tocheck.lockout) {
+            return res.json({
+              success: false,
+              message: "Account locked due to too many failed login attempts",
+            });
+          }
+        }
+      } catch (redisError) {
+        console.error("Redis error checking lockout:", redisError);
+        return res.status(500).json({ 
+          success: false, 
+          message: "Authentication service error. Please try again." 
+        });
+      }
+
+      //no hay lockout, validar login
+      msg = await ValidateUser(req.body, store);
+
+      //malas creds
+      if (msg.success === false && msg.user && msg.uid) {
+        //usuario existe pero password es incorrecto si no exixte pues no hacemos nada
+        //increment failed login attempts on redis here and check if it reaches the lockout threshold
+        try {
+          const value = await RDclient.get(token);
+          if (value != null) {
+            const data = JSON.parse(value);
+            data.attempts += 1;
+            if (data.attempts >= 5) {
+              await RDclient.set(
+                token,
+                JSON.stringify({
+                  lastLogin: new Date(),
+                  attempts: data.attempts,
+                  lockout: true,
+                  login: false,
+                }),
+                { EX: 60 * 60 },
+              ); // Lock account for 1 hour
+              return res.json({
+                success: false,
+                message: "Account locked due to too many failed login attempts",
+              });
+            }
+            await RDclient.set(
+              token,
+              JSON.stringify({
+                lastLogin: new Date(),
+                attempts: data.attempts,
+                lockout: false,
+                login: false,
+              }),
+              { EX: 60 * 60 },
+            ); // Update failed attempts with expiration of 1 hour
+            return res.json({
+              success: false,
+              message: "Invalid username or password",
+            });
+          } else {
+            await RDclient.set(
+              token,
+              JSON.stringify({
+                lastLogin: new Date(),
+                attempts: 1,
+                lockout: false,
+                login: false,
+              }),
+              { EX: 60 * 60 },
+            );
+            return res.json({
+              success: false,
+              message: "Invalid username or password",
+            });
+          }
+        } catch (redisError) {
+          console.error("Redis error during failed login tracking:", redisError);
+          return res.status(500).json({ 
+            success: false, 
+            message: "Authentication service error. Please try again." 
+          });
+        }
+      }
+      //creds validas
+      else {
+        try {
+          await RDclient.set(
             token,
             JSON.stringify({
               lastLogin: new Date(),
-              attempts: data.attempts,
-              lockout: true,
-              login: false,
+              attempts: 0,
+              lockout: false,
+              token: token,
+              login: true,
             }),
             { EX: 60 * 60 },
-          ); // Lock account for 1 hour
-          return res.json({
-            success: false,
-            message: "Account locked due to too many failed login attempts",
+          ); // Set token with expiration of 1 hour
+          msg.token = token;
+        } catch (redisError) {
+          console.error("Redis error during successful login:", redisError);
+          return res.status(500).json({ 
+            success: false, 
+            message: "Session creation error. Please try again." 
           });
-          //lockout
         }
-        RDclient.set(
-          token,
-          JSON.stringify({
-            lastLogin: new Date(),
-            attempts: data.attempts,
-            lockout: false,
-            login: false,
-          }),
-          { EX: 60 * 60 },
-        ); // Update failed attempts with expiration of 1 hour
-        return res.json({
-          success: false,
-          message: "Invalid username or password",
-        });
-      } else {
-        RDclient.set(
-          token,
-          JSON.stringify({
-            lastLogin: new Date(),
-            attempts: 1,
-            lockout: false,
-            login: false,
-          }),
-          { EX: 60 * 60 },
-        );
-        return res.json({
-          success: false,
-          message: "Invalid username or password",
-        });
       }
     }
-    //creds validas
-    else {
-      await RDclient.set(
-        token,
-        JSON.stringify({
-          lastLogin: new Date(),
-          attempts: 0,
-          lockout: false,
-          token: token,
-          login: true,
-        }),
-        { EX: 60 * 60 },
-      ); // Set token with expiration of 1 hour
-      msg.token = token;
-    }
+    res.json(msg);
+  } catch (error) {
+    console.error("Unexpected error in /login:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Login failed. Please try again." 
+    });
   }
-  res.json(msg);
 });
 
 //DONE:
-app.get("/logout", (req, res) => {
-  // Logic for user logout
-  if (req.body.token) {
-    //invalidate token on redis here
-    RDclient.del(req.body.token);
-    res.json({ success: true, message: "Logout successful" });
-  } else {
-    res.json({ success: false, message: "No token provided" });
+app.get("/logout", async (req, res) => {
+  try {
+    // Logic for user logout
+    if (req.body.token) {
+      //invalidate token on redis here
+      try {
+        await RDclient.del(req.body.token);
+        res.json({ success: true, message: "Logout successful" });
+      } catch (redisError) {
+        console.error("Redis error during logout:", redisError);
+        return res.status(500).json({ 
+          success: false, 
+          message: "Logout error. Please try again." 
+        });
+      }
+    } else {
+      res.json({ success: false, message: "No token provided" });
+    }
+  } catch (error) {
+    console.error("Unexpected error in /logout:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Logout failed. Please try again." 
+    });
   }
 });
 
 // cursos
 //DONE, si crea:
 app.post("/courses/create", async (req, res) => {
-  const classData = req.body.class;
-  if (!classData?.classCode) {
-    return res.status(400).json({ message: "Missing class data or classCode" });
-  }
+  try {
+    const classData = req.body.class;
+    if (!classData?.classCode) {
+      return res.status(400).json({ message: "Missing class data or classCode" });
+    }
 
-  const created = await createClass(neo4jDriver, classData, req.body.creatorId);
-  res.json({ message: "Course created successfully", course: created });
+    const created = await createClass(neo4jDriver, classData, req.body.id);
+    if (!created) {
+      return res.status(400).json({ success: false, message: "Course creation failed" });
+    }
+    res.json({ message: "Course created successfully", course: created });
+  } catch (error) {
+    console.error("Error creating course:", error.message);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to create course. Please try again.", 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
+  }
 });
 //DONE:
-app.post("/courses/section/", async (req, res) => {
-  const parentId = req.params.classCode;
+app.post("/courses/section/:id", async (req, res) => {
+  const parentId = req.params.id;
   const { sectionId, description, isClassParent = true } = req.body;
 
   if (!sectionId || !description) {
@@ -373,7 +476,7 @@ app.post("/courses/section/", async (req, res) => {
   res.json({ message: "Section added successfully", sectionId, parentId, isClassParent });
 });
 //DONE:
-app.put("/courses/section/", async (req, res) => {
+app.put("/courses/section/:classCode", async (req, res) => {
   const sectionId = req.params.classCode;
   const { description } = req.body;
 
@@ -385,7 +488,7 @@ app.put("/courses/section/", async (req, res) => {
   res.json({ message: "Section updated successfully", sectionId });
 });
 //DONE:
-app.post("/courses/evaluation/", async (req, res) => {
+app.post("/courses/evaluation/:classCode", async (req, res) => {
   const classCode = req.params.classCode;
   const { evalId, name, type, content } = req.body;
 
@@ -398,14 +501,14 @@ app.post("/courses/evaluation/", async (req, res) => {
   res.json({ message: "Evaluation added successfully", classCode, evalId });
 });
 //TODO:
-app.put("/courses/status/", (req, res) => {
+app.put("/courses/status/:id", (req, res) => {
   // Logic to update the status of a course
   res.json({
     message: `Course status updated for course ID: ${req.params.id}`,
   });
 });
 //DONE:
-app.post("/courses/students/", async (req, res) => {
+app.post("/courses/students/:classCode", async (req, res) => {
   const classCode = req.params.classCode;
   const { studentId } = req.body;
 
@@ -417,7 +520,7 @@ app.post("/courses/students/", async (req, res) => {
   res.json({ message: "Student added successfully", classCode, studentId });
 });
 //DONE:
-app.get("/courses/students/", async (req, res) => {
+app.get("/courses/students/:classCode", async (req, res) => {
   const classCode = req.params.classCode;
   const students = await getStudents(neo4jDriver, classCode);
   res.json({ message: `Students enrolled in course ${classCode}`, students });
@@ -438,7 +541,7 @@ app.get("/courses/mine", async (req, res) => {
   });
 });
 //DONE:
-app.post("/courses/clone/", async (req, res) => {
+app.post("/courses/clone/:sourceClassCode", async (req, res) => {
   const sourceClassCode = req.params.sourceClassCode;
   const newClassCode = req.body.newClassCode || `${sourceClassCode}-clone`;
   const creatorId = req.body.creatorId || req.body.id || null;
@@ -451,7 +554,7 @@ app.post("/courses/clone/", async (req, res) => {
   res.json({ message: "Course cloned successfully", course: cloned });
 });
 //DONE:
-app.get("/courses/", async (req, res) => {
+app.get("/courses/:classCode", async (req, res) => {
   const classCode = req.params.classCode;
   const details = await getClassDetails(neo4jDriver, classCode);
   if (!details) {
@@ -465,7 +568,7 @@ app.get("/courses", async (req, res) => {
   res.json({ message: "All available courses", classes });
 });
 //DONE:
-app.post("/courses/enroll/", async (req, res) => {
+app.post("/courses/enroll/:classCode", async (req, res) => {
   const classCode = req.params.classCode;
   const { studentId } = req.body;
 
@@ -487,35 +590,35 @@ app.get("/courses/enrolled", async (req, res) => {
   res.json({ message: `Courses enrolled by student ${studentId}`, courses });
 });
 //DONE:
-app.get("/courses/evaluations/", async (req, res) => {
+app.get("/courses/evaluations/:classCode", async (req, res) => {
   const classCode = req.params.classCode;
   const evaluations = await getEvaluations(neo4jDriver, classCode);
   res.json({ message: `Evaluations for course ${classCode}`, evaluations });
 });
 //TODO:
-app.post("/courses/submit/", (req, res) => {
+app.post("/courses/submit/:id", (req, res) => {
   // Logic to submit an evaluation for a course
   res.json({ message: `Evaluation submitted for course ID: ${req.params.id}` });
 });
 //TODO:
-app.get("/courses/grades/", (req, res) => {
+app.get("/courses/grades/:id", (req, res) => {
   // Logic to get grades for a course
   res.json({ message: `Grades for course ID: ${req.params.id}` });
 });
 
 //messages
 //TODO:
-app.post("/messages/send/", (req, res) => {
+app.post("/messages/send/:id", (req, res) => {
   // Logic to send a message
   res.json({ message: "Message sent successfully" });
 });
 //TODO:
-app.get("/messages/inbox/", (req, res) => {
+app.get("/messages/inbox/:id", (req, res) => {
   // Logic to get inbox messages for a user
   res.json({ message: `Inbox messages for user ID: ${req.params.id}` });
 });
 //TODO:
-app.post("/messages/conversation/", (req, res) => {
+app.post("/messages/conversation/:id", (req, res) => {
   // Logic to start a new conversation
   res.json({
     message: `New conversation started for user ID: ${req.params.id}`,
@@ -523,30 +626,49 @@ app.post("/messages/conversation/", (req, res) => {
 });
 
 app.post("/test", async (req, res) => {
-  await sendSampleData(neo4jDriver);
+  //await sendSampleData(neo4jDriver);
+  await RDclient.set("aaaaaaaaaaaaaaa","aaaaaaaaaaaaaaaaaa")
 });
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
 
-  store  = await RDBinitializeStore(
-    process.env.RAVENDB_URL || "http://localhost:8080",
-    process.env.RAVENDB_DB || "test",
-  );
-  console.log("RavenDB store initialized");
+    // Initialize RavenDB
+    try {
+      store = await RDBinitializeStore(
+        process.env.RAVENDB_URL || "http://localhost:8080",
+        process.env.RAVENDB_DB || "test",
+      );
+      console.log("✓ RavenDB store initialized successfully");
+    } catch (error) {
+      console.error("✗ Failed to initialize RavenDB:", error.message);
+    }
 
-  RDclient = await RedisinitializeStore(
-    process.env.REDIS_URL || "http://localhost:6379",
-    process.env.REDIS_DB || "0",
-  );
-  console.log("Redis client initialized");
+    // Initialize Redis
+    try {
+      RDclient = await RedisinitializeStore(
+        process.env.REDIS_URL || "http://localhost:6379",
+        process.env.REDIS_DB || "0",
+      );
+      console.log("✓ Redis client initialized successfully");
+    } catch (error) {
+      console.error("✗ Failed to initialize Redis:", error.message);
+    }
 
-  neo4jDriver = connectToNeo4j(
-    process.env.NEO4J_URL || "bolt://localhost:7687",
-    // process.env.NEO4J_USER || "neo4j",
-    // process.env.NEO4J_PASSWORD || "password"
-  );
-  console.log("Neo4j driver initialized");
+    // Initialize Neo4j
+    try {
+      neo4jDriver = connectToNeo4j(
+        process.env.NEO4J_URL || "bolt://localhost:7687",
+        // process.env.NEO4J_USER || "neo4j",
+        // process.env.NEO4J_PASSWORD || "password"
+      );
+      console.log("✓ Neo4j driver initialized successfully");
+    } catch (error) {
+      console.error("✗ Failed to initialize Neo4j:", error.message);
+    }
 
-  //await sendSampleData(neo4jDriver);
+    console.log("\n✓ All database connections initialized successfully!");
+    console.log("Server is ready to accept requests.\n");
+
+    //await sendSampleData(neo4jDriver);
 });

@@ -73,15 +73,78 @@ el metodo asigan un nuevo password aleatorio, devuelve estado y nuevio password
 ```
 
 ### Update Password
+**PUT** `http://localhost:3000/users/update/password/{id}`
+
+Request body:
 ```
 {
-  "id": "#####",
   "newpassword":"#############", //nuevo password
   "password":"##########" //viejo para confirmar
 }
 ```
 
-## Courses / Classes
+### Get User Log
+**GET** `http://localhost:3000/users/log/{id}`
+
+### Set User Role
+**POST** `http://localhost:3000/users/role/{id}`
+
+Request body:
+```
+{
+  "role": "student|professor|admin"
+}
+```
+
+### Get User Role
+**GET** `http://localhost:3000/users/role/{id}`
+
+### Send Friend Request
+**POST** `http://localhost:3000/users/friends/request/{id}`
+
+Request body:
+```
+{
+  "friendId": "user_id_to_befriend"
+}
+```
+
+### Get Friends
+**GET** `http://localhost:3000/users/friends/{id}`
+
+### Get Friend Requests
+**GET** `http://localhost:3000/users/friends/requests/{id}`
+
+### Accept Friend Request
+**POST** `http://localhost:3000/users/friends/accept/{id}`
+
+Request body:
+```
+{
+  "friendId": "user_id_to_accept"
+}
+```
+
+### Reject Friend Request
+**POST** `http://localhost:3000/users/friends/reject/{id}`
+
+Request body:
+```
+{
+  "friendId": "user_id_to_reject"
+}
+```
+
+### Get User Courses
+**GET** `http://localhost:3000/users/courses/{id}`
+
+Alternative query parameter format:
+**GET** `http://localhost:3000/users/courses?id={studentId}`
+
+### Get User Details with Courses
+**GET** `http://localhost:3000/users/details/{userId}`
+
+Returns user information along with enrolled courses.
 
 ### 1. Create a course
 **POST** `http://localhost:3000/courses/create`
@@ -102,7 +165,7 @@ Request body:
 ```
 
 ### 2. Add a section to a course
-**POST** `http://localhost:3000/courses/section/{classCode}`
+**POST** `http://localhost:3000/courses/section/{id}`
 
 Request body:
 ```json
@@ -114,7 +177,7 @@ Request body:
 ```
 
 ### 3. Update a section
-**PUT** `http://localhost:3000/courses/section/{sectionId}`
+**PUT** `http://localhost:3000/courses/section/{classCode}`
 
 Request body:
 ```json
@@ -142,8 +205,15 @@ Request body:
 }
 ```
 
-### 5. Get evaluations for a course
-**GET** `http://localhost:3000/courses/evaluations/{classCode}`
+### 5. Update course status
+**PUT** `http://localhost:3000/courses/status/{id}`
+
+Request body:
+```json
+{
+  "status": "active|inactive"
+}
+```
 
 ### 6. Add/Enroll a student in a course
 **POST** `http://localhost:3000/courses/students/{classCode}`
@@ -168,13 +238,10 @@ Request body:
 ### 7. Get enrolled students for a course
 **GET** `http://localhost:3000/courses/students/{classCode}`
 
-### 8. Get courses a student is enrolled in
-**GET** `http://localhost:3000/courses/enrolled?id={studentId}`
-
-### 9. Get courses created by a user
+### 8. Get courses created by a user
 **GET** `http://localhost:3000/courses/mine?id={userId}`
 
-### 10. Clone a class
+### 9. Clone a class
 **POST** `http://localhost:3000/courses/clone/{sourceClassCode}`
 
 Request body:
@@ -185,23 +252,58 @@ Request body:
 }
 ```
 
-### 11. Get full class details
+### 10. Get full class details
 **GET** `http://localhost:3000/courses/{classCode}`
 
 Returns class information, evaluations, students, and sections.
 
-### 12. List all classes
+### 11. List all classes
 **GET** `http://localhost:3000/courses`
 
-## User Courses
+### 12. Get courses a student is enrolled in
+**GET** `http://localhost:3000/courses/enrolled?id={studentId}`
 
-### Get courses a user is enrolled in
-**GET** `http://localhost:3000/users/courses/{studentId}`
+### 13. Get evaluations for a course
+**GET** `http://localhost:3000/courses/evaluations/{classCode}`
 
-Alternative query parameter format:
-**GET** `http://localhost:3000/users/courses?id={studentId}`
+### 14. Submit evaluation
+**POST** `http://localhost:3000/courses/submit/{id}`
 
-### Get user details with courses
-**GET** `http://localhost:3000/users/details/{userId}`
+Request body:
+```json
+{
+  "evaluationId": "eval_001",
+  "answers": {...}
+}
+```
 
-Returns user information along with enrolled courses.
+### 15. Get grades for a course
+**GET** `http://localhost:3000/courses/grades/{id}`
+
+## Messages
+
+### Send Message
+**POST** `http://localhost:3000/messages/send/{id}`
+
+Request body:
+```json
+{
+  "recipientId": "user_id",
+  "content": "Message content",
+  "type": "direct|group"
+}
+```
+
+### Get Inbox Messages
+**GET** `http://localhost:3000/messages/inbox/{id}`
+
+### Start New Conversation
+**POST** `http://localhost:3000/messages/conversation/{id}`
+
+Request body:
+```json
+{
+  "participantIds": ["user1", "user2"],
+  "name": "Conversation name (optional)"
+}
+```

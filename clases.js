@@ -129,7 +129,7 @@ export async function addSection(
                 (c)-[:HAS_SECTION]->(s)`,
         { parentId, sectionId, description },
       );
-    } else {
+    } else if (sectionId!=parentId){
       await session.run(
         `MATCH (p:Section {sectionId: $parentId})
          CREATE (s:Section {sectionId: $sectionId, description: $description}),
