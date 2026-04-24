@@ -1,7 +1,8 @@
 services:
-  ravendb:
+  #nodos RVDB
+  ravendb-node1 :
     image: ravendb/ravendb:latest
-    container_name: ravendb
+    container_name: ravendb1
     ports:
       - "8080:8080"   # Web UI
       - "38888:38888" # TCP (optional)
@@ -9,20 +10,92 @@ services:
       - RAVEN_Setup_Mode=None
       - RAVEN_License_Eula_Accepted=true
       - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/stats"]
-      interval: 10s
-      timeout: 10s
-      retries: 20
-      start_period: 60s
+    networks:
+      - app-network
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:8080/admin/stats"]
+    #   interval: 10s
+    #   timeout: 10s
+    #   retries: 20
+    #   start_period: 60s
     #volumes:
     #  - ravendb_data:/opt/RavenDB/Server/RavenData
-  redis:
-    image: redis:latest
-    container_name: redis
+  ravendb-node2 :
+    image: ravendb/ravendb:latest
+    container_name: ravendb2
     ports:
-      - "6379:6379"
-  redisinsight: ##UI para ver la informacion de redis, no es necesario pero es util
+      - "8081:8080"   # Web UI
+      - "38889:38888" # TCP (optional)
+    environment:
+      - RAVEN_Setup_Mode=None
+      - RAVEN_License_Eula_Accepted=true
+      - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
+    networks:
+      - app-network
+  ravendb-node3 :
+    image: ravendb/ravendb:latest
+    container_name: ravendb3
+    ports:
+      - "8082:8080"   # Web UI
+      - "38890:38888" # TCP (optional)
+    environment:
+      - RAVEN_Setup_Mode=None
+      - RAVEN_License_Eula_Accepted=true
+      - RAVEN_Security_UnsecuredAccessAllowed=PrivateNetwork
+    networks:
+      - app-network
+    
+
+  #Redis cluster
+  redis-node-1:
+    image: redis:latest
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports:
+      - "7001:6379"
+      - "17001:16379"
+    
+    networks:
+      - app-network
+  redis-node-2:
+    image: redis:latest
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports:
+      - "7002:6379"
+      - "17002:16379"
+    networks:
+      - app-network
+
+  redis-node-3:
+    image: redis:latest
+    networks:
+      - app-network
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports:
+      - "7003:6379"
+      - "17003:16379"
+
+  redis-cluster-creator:
+    image: redis:latest
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+    # Wait for nodes to start, then creat
+    networks:
+      - app-network
+    entrypoint: >
+      sh -c "sleep 5 && redis-cli --cluster create 
+      redis-node-1:6379 redis-node-2:6379 redis-node-3:6379 
+      --cluster-replicas 0 --cluster-yes"
+
+  # redis:
+  #   image: redis:latest
+  #   container_name: redis
+  #   ports:
+  #     - "6379:6379"
+  redisinsight: ##UI
+    networks:
+      - app-network
     image: redis/redisinsight:latest
     container_name: redisinsight
     ports:
@@ -35,18 +108,21 @@ services:
       - "7687:7687" # Bolt
     environment:
       - NEO4J_AUTH=none
-  api:
-    build: .
-    container_name: api
-    depends_on:
-      ravendb:
-        condition: service_healthy
-    environment:
-      - PORT=3000
-      - RAVENDB_URL=http://ravendb:8080
-      - RAVENDB_DB=test
-    ports:
-      - "3000:3000"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+  # api:
+  #   build: .
+  #   container_name: api
+  #   environment:
+  #     - PORT=3000
+  #     - RAVENDB_URL=http://ravendb:8080
+  #     - RAVENDB_DB=test
+  #   ports:
+  #     - "3000:3000"
 
 #volumes:
 #  ravendb_data: # TODO
