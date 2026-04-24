@@ -662,8 +662,8 @@ app.listen(PORT, async () => {
     try {
       neo4jDriver = connectToNeo4j(
         process.env.NEO4J_URL || "bolt://localhost:7687",
-        // process.env.NEO4J_USER || "neo4j",
-        // process.env.NEO4J_PASSWORD || "password"
+        process.env.NEO4J_USER || "neo4j",
+        process.env.NEO4J_PASSWORD || "password"
       );
       console.log("✓ Neo4j driver initialized successfully");
     } catch (error) {
