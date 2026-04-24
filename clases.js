@@ -137,6 +137,9 @@ export async function addSection(
         { parentId, sectionId, description },
       );
     }
+    else{
+      return {message:"cant have a sub section and a sectrion with same id"}
+    }
   } finally {
     await session.close();
   }

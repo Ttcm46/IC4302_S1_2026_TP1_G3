@@ -472,8 +472,11 @@ app.post("/courses/section/:id", async (req, res) => {
     return res.status(400).json({ message: "Missing sectionId or description" });
   }
 
-  await addSection(neo4jDriver, parentId, sectionId, description, isClassParent);
-  res.json({ message: "Section added successfully", sectionId, parentId, isClassParent });
+  const result = await addSection(neo4jDriver, parentId, sectionId, description, isClassParent);
+
+  if (result ==null)
+    res.json({ message: "Section added successfully", sectionId, parentId, isClassParent });
+  res.json({message: "Couldnt add section",error:result})
 });
 //DONE:
 app.put("/courses/section/:classCode", async (req, res) => {
