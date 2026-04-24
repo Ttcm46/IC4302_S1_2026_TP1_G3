@@ -53,43 +53,43 @@ app.get("/", (req, res) => {
     methods: {
       users: [
         "POST /users/create",
-        "GET /users/reset:id",
-        "PUT /users/update/password/:id",
-        "GET /users/:id",
+        "GET /users/reset",
+        "PUT /users/update/password/",
+        "GET /users/",
         "GET /users",
-        "GET /users/log/:id",
-        "POST /users/role/:id",
-        "GET /users/role/:id",
-        "POST users/friends/request/:id",
+        "GET /users/log/",
+        "POST /users/role/",
+        "GET /users/role/",
+        "POST users/friends/request/",
         "GET users/friends/",
-        "GET users/friends/requests/:id",
-        "POST users/friends/accept/:id",
-        "POST users/friends/reject/:id",
-        "GET users/courses/:id",
-        "GET users/details/:id",
+        "GET users/friends/requests/",
+        "POST users/friends/accept/",
+        "POST users/friends/reject/",
+        "GET users/courses/",
+        "GET users/details/",
       ],
       login: ["GET /login", "GET /logout"],
       courses: [
         "POST /courses/create",
-        "POST /courses/section/:id",
-        "PUT /courses/section/:id",
-        "POST /courses/evaluation/:id",
-        "PUT /courses/status/:id",
-        "GET /courses/students/:id",
+        "POST /courses/section/",
+        "PUT /courses/section/",
+        "POST /courses/evaluation/",
+        "PUT /courses/status/",
+        "GET /courses/students/",
         "GET /courses/mine",
-        "POST /courses/clone/:id",
-        "GET /courses/:id",
+        "POST /courses/clone/",
+        "GET /courses/",
         "GET /courses",
-        "POST /courses/enroll/:id",
+        "POST /courses/enroll/",
         "GET /courses/enrolled",
-        "GET /courses/evaluations/:id",
-        "POST /courses/submit/:id",
-        "GET /courses/grades/:id",
+        "GET /courses/evaluations/",
+        "POST /courses/submit/",
+        "GET /courses/grades/",
       ],
       messages: [
-        "POST /messages/send/:id",
-        "GET /messages/inbox/:id",
-        "POST /messages/conversation/:id",
+        "POST /messages/send/",
+        "GET /messages/inbox/",
+        "POST /messages/conversation/",
       ],
     },
   });
@@ -147,24 +147,25 @@ app.get("/users", async (req, res) => {
   }
 });
 //TODO:
-app.get("/users/log/:id", (req, res) => {
+app.get("/users/log/", (req, res) => {
+  const uid = req.params.id
   // Logic to get user login history
   res.json({ message: `Login history for user ID: ${req.params.id}` });
 });
 //TEST:
-app.post("/users/role/:id", (req, res) => {
+app.post("/users/role/", (req, res) => {
   // Logic to assign a role to a user
   updateUser(req.params.id, {password:req.body.newrole}, store)
   res.json({ message: `Role assigned to user ID: ${req.params.id}` });
 });
 //TEST:
-app.get("/users/role/:id", async (req, res) => {
+app.get("/users/role/", async (req, res) => {
   // Logic to get the role of a user
   const tmp = await loadUser(req.params.id, store);
   res.json({ message: `Role for user ID: ${req.params.id}`, role: tmp.data?.typeofuser });
 });
 //TODO:
-app.post("/users/friends/request/:id", (req, res) => {
+app.post("/users/friends/request/", (req, res) => {
   // Logic to send a friend request
   res.json({ message: `Friend request sent to user ID: ${req.params.id}` });
 });
@@ -174,21 +175,21 @@ app.get("/users/friends/", (req, res) => {
   res.json({ message: `Friends list for user ID: ${req.params.id}` });
 });
 //TODO:
-app.get("/users/friends/requests/:id", (req, res) => {
+app.get("/users/friends/requests/", (req, res) => {
   // Logic to get pending friend requests for a user
   res.json({
     message: `Pending friend requests for user ID: ${req.params.id}`,
   });
 });
 //TODO:
-app.post("/users/friends/accept/:id", (req, res) => {
+app.post("/users/friends/accept/", (req, res) => {
   // Logic to accept a friend request
   res.json({
     message: `Friend request accepted for user ID: ${req.params.id}`,
   });
 });
 //TODO:
-app.post("/users/friends/reject/:id", (req, res) => {
+app.post("/users/friends/reject/", (req, res) => {
   // Logic to reject a friend request
   res.json({
     message: `Friend request rejected for user ID: ${req.params.id}`,
@@ -199,7 +200,7 @@ app.get(["/users/courses", "/users/courses/"], async (req, res) => {
   const id = req.query.id || req.body.id;
   if (!id) {
     return res.status(400).json({
-      message: "Missing user ID. Use /users/courses/:id or /users/courses?id=USER_ID",
+      message: "Missing studentId. Use /users/courses/ or /users/courses?studentId=USER_ID",
     });
   }
 
@@ -211,8 +212,8 @@ app.get(["/users/courses", "/users/courses/"], async (req, res) => {
 });
 
 //TEST:
-app.get("/users/courses/:id", async (req, res) => {
-  const id = req.params.id;
+app.get("/users/courses/", async (req, res) => {
+  const id = req.params.studentId;
   const tmp = await getEnrolledClasses(neo4jDriver, id);
   res.json({
     message: `Courses for user ID: ${id}`,
@@ -221,8 +222,8 @@ app.get("/users/courses/:id", async (req, res) => {
 });
 
 //TEST: upgrade: add course data and firends
-app.get("/users/details/:id", async (req, res) => {
-  const id = req.params.id;
+app.get("/users/details/", async (req, res) => {
+  const id = req.params.userId;
   const tmp = await loadUser(id, store);
   const tmpClss = await getEnrolledClasses(neo4jDriver, id);
   // Logic to get user details
@@ -360,8 +361,8 @@ app.post("/courses/create", async (req, res) => {
   res.json({ message: "Course created successfully", course: created });
 });
 //DONE:
-app.post("/courses/section/:id", async (req, res) => {
-  const parentId = req.params.id;
+app.post("/courses/section/", async (req, res) => {
+  const parentId = req.params.classCode;
   const { sectionId, description, isClassParent = true } = req.body;
 
   if (!sectionId || !description) {
@@ -372,8 +373,8 @@ app.post("/courses/section/:id", async (req, res) => {
   res.json({ message: "Section added successfully", sectionId, parentId, isClassParent });
 });
 //DONE:
-app.put("/courses/section/:id", async (req, res) => {
-  const sectionId = req.params.id;
+app.put("/courses/section/", async (req, res) => {
+  const sectionId = req.params.classCode;
   const { description } = req.body;
 
   if (!description) {
@@ -384,8 +385,8 @@ app.put("/courses/section/:id", async (req, res) => {
   res.json({ message: "Section updated successfully", sectionId });
 });
 //DONE:
-app.post("/courses/evaluation/:id", async (req, res) => {
-  const classCode = req.params.id;
+app.post("/courses/evaluation/", async (req, res) => {
+  const classCode = req.params.classCode;
   const { evalId, name, type, content } = req.body;
 
   if (!evalId || !name || !type || content == null) {
@@ -397,15 +398,15 @@ app.post("/courses/evaluation/:id", async (req, res) => {
   res.json({ message: "Evaluation added successfully", classCode, evalId });
 });
 //TODO:
-app.put("/courses/status/:id", (req, res) => {
+app.put("/courses/status/", (req, res) => {
   // Logic to update the status of a course
   res.json({
     message: `Course status updated for course ID: ${req.params.id}`,
   });
 });
 //DONE:
-app.post("/courses/students/:id", async (req, res) => {
-  const classCode = req.params.id;
+app.post("/courses/students/", async (req, res) => {
+  const classCode = req.params.classCode;
   const { studentId } = req.body;
 
   if (!studentId) {
@@ -416,8 +417,8 @@ app.post("/courses/students/:id", async (req, res) => {
   res.json({ message: "Student added successfully", classCode, studentId });
 });
 //DONE:
-app.get("/courses/students/:id", async (req, res) => {
-  const classCode = req.params.id;
+app.get("/courses/students/", async (req, res) => {
+  const classCode = req.params.classCode;
   const students = await getStudents(neo4jDriver, classCode);
   res.json({ message: `Students enrolled in course ${classCode}`, students });
 });
@@ -437,8 +438,8 @@ app.get("/courses/mine", async (req, res) => {
   });
 });
 //DONE:
-app.post("/courses/clone/:id", async (req, res) => {
-  const sourceClassCode = req.params.id;
+app.post("/courses/clone/", async (req, res) => {
+  const sourceClassCode = req.params.sourceClassCode;
   const newClassCode = req.body.newClassCode || `${sourceClassCode}-clone`;
   const creatorId = req.body.creatorId || req.body.id || null;
 
@@ -450,8 +451,8 @@ app.post("/courses/clone/:id", async (req, res) => {
   res.json({ message: "Course cloned successfully", course: cloned });
 });
 //DONE:
-app.get("/courses/:id", async (req, res) => {
-  const classCode = req.params.id;
+app.get("/courses/", async (req, res) => {
+  const classCode = req.params.classCode;
   const details = await getClassDetails(neo4jDriver, classCode);
   if (!details) {
     return res.status(404).json({ message: `Class not found: ${classCode}` });
@@ -464,8 +465,8 @@ app.get("/courses", async (req, res) => {
   res.json({ message: "All available courses", classes });
 });
 //DONE:
-app.post("/courses/enroll/:id", async (req, res) => {
-  const classCode = req.params.id;
+app.post("/courses/enroll/", async (req, res) => {
+  const classCode = req.params.classCode;
   const { studentId } = req.body;
 
   if (!studentId) {
@@ -486,35 +487,35 @@ app.get("/courses/enrolled", async (req, res) => {
   res.json({ message: `Courses enrolled by student ${studentId}`, courses });
 });
 //DONE:
-app.get("/courses/evaluations/:id", async (req, res) => {
-  const classCode = req.params.id;
+app.get("/courses/evaluations/", async (req, res) => {
+  const classCode = req.params.classCode;
   const evaluations = await getEvaluations(neo4jDriver, classCode);
   res.json({ message: `Evaluations for course ${classCode}`, evaluations });
 });
 //TODO:
-app.post("/courses/submit/:id", (req, res) => {
+app.post("/courses/submit/", (req, res) => {
   // Logic to submit an evaluation for a course
   res.json({ message: `Evaluation submitted for course ID: ${req.params.id}` });
 });
 //TODO:
-app.get("/courses/grades/:id", (req, res) => {
+app.get("/courses/grades/", (req, res) => {
   // Logic to get grades for a course
   res.json({ message: `Grades for course ID: ${req.params.id}` });
 });
 
 //messages
 //TODO:
-app.post("/messages/send/:id", (req, res) => {
+app.post("/messages/send/", (req, res) => {
   // Logic to send a message
   res.json({ message: "Message sent successfully" });
 });
 //TODO:
-app.get("/messages/inbox/:id", (req, res) => {
+app.get("/messages/inbox/", (req, res) => {
   // Logic to get inbox messages for a user
   res.json({ message: `Inbox messages for user ID: ${req.params.id}` });
 });
 //TODO:
-app.post("/messages/conversation/:id", (req, res) => {
+app.post("/messages/conversation/", (req, res) => {
   // Logic to start a new conversation
   res.json({
     message: `New conversation started for user ID: ${req.params.id}`,

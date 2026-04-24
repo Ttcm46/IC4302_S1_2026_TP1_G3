@@ -556,16 +556,3 @@ export async function getEnrolledClasses(driver, studentId) {
     await session.close();
   }
 }
-
-export async function getCreatedClasses(driver, studentId) {
-  const session = driver.session();
-  try {
-    const result = await session.run(
-      `MATCH (n:Class{creatorId:$studentId}) RETURN n`,
-      { studentId },
-    );
-    return result.records.map((record) => record.get("c").properties);
-  } finally {
-    await session.close();
-  }
-}

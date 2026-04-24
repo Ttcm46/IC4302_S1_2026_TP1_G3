@@ -122,6 +122,7 @@ Request body:
   "description": "Actualización de la descripción de la sección"
 }
 ```
+puede actualizarse con el body que se requiera, con cuanta informacion se necesite
 
 ### 4. Create an evaluation for a course
 **POST** `http://localhost:3000/courses/evaluation/{classCode}`
