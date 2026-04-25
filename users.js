@@ -36,7 +36,6 @@ async function CreateUser(data = {},store) {
     const username = data.username || "anonymous";
     const salt = crypto.createHash("sha256").update(username).digest("hex");
     const passwordInput = typeof data.password === "string" ? data.password : "secret";
-
     const user = {
       name: data.name || "John Doe",
       username,
@@ -45,7 +44,8 @@ async function CreateUser(data = {},store) {
       dob: data.dob ? new Date(data.dob) : null,
       picPath: data.picPath || null,
       typeofuser: typeof data.typeofuser === "string" ? data.typeofuser : "student",
-      correo: data.correo || null
+      correo: data.correo || null,
+      friends: []
     };
 
     await session.store(user,"user/");
@@ -128,4 +128,42 @@ async function updateUser(id, data, store) {
   return { success: true, data: user };
 }
 
-export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser, getUser, updateUser, loadUser};
+async function getFriends(id, store) {
+  const session = store.openSession();
+  const user = await session.load(id);
+  if (!user) {
+    return { success: false, message: "User not found" };
+  }
+  return { success: true, friends: user.friends || [] };
+}
+
+async function addFriend(userId, friendId, store) {
+  const session = store.openSession();
+  
+  // Load both users
+  const user = await session.load(userId);
+  const friend = await session.load(friendId);
+  
+  if (!user || !friend) {
+    return { success: false, message: "User or friend not found" };
+  }
+  
+  // Initialize friends arrays if they don't exist
+  if (!user.friends) user.friends = [];
+  if (!friend.friends) friend.friends = [];
+  
+  // Add friendId to user's friends if not already there
+  if (!user.friends.includes(friendId)) {
+    user.friends.push(friendId);
+  }
+  
+  // Add userId to friend's friends if not already there (mutual friendship)
+  if (!friend.friends.includes(userId)) {
+    friend.friends.push(userId);
+  }
+  
+  await session.saveChanges();
+  return { success: true, message: "Friend added successfully" };
+}
+
+export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser, getUser, updateUser, loadUser, getFriends, addFriend};
