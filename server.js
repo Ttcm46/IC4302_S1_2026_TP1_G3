@@ -45,6 +45,10 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
 
+// Connect to mongodb
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => app.listen(8081))
+  .catch(err => console.error(err));
 // Global error handler middleware
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err.message);
@@ -165,6 +169,7 @@ app.post("/users/reset", async (req, res) => {
   });
 });
 //DONE: update password                   TEST: untested
+
 app.put("/users/update/password/:id", (req, res) => {
   updateUser(req.params.id, {password:req.body.newpassword}, store);
   res.json({ message: "Password updated successfully" });

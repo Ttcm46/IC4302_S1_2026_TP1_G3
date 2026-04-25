@@ -112,6 +112,15 @@ services:
       - NEO4J_AUTH=none
     networks:
       - app-network
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=admin
 
 networks:
   app-network:
