@@ -33,7 +33,10 @@ import {
   getCreatedClasses
 
 } from "./clases.js";
-import { initializeMongo } from "./accessLogs.js";
+import { 
+  createAccessLog, 
+  initializeMongo, 
+  getDeviceInfo } from "./accessLogs.js";
 import { get } from "http";
 
 dotenv.config();
@@ -182,10 +185,23 @@ app.get("/users", async (req, res) => {
     res.json({ message: "User search completed", data: data });
   }
 });
-//TODO:
-app.get("/users/log/:id", (req, res) => {
-  const uid = req.params.id
+//TEST: testing required
+app.get("/users/log/:id", async (req, res) => {
   // Logic to get user login history
+  try {
+    const { AccessLog } = await import('./accessLogs.js');
+    const logs = await AccessLog.find({ userId: uid }).sort({ createdAt: -1 });
+    res.json({ message: `Login history for user ID: ${uid}`, logs });
+  } catch (error) {
+    console.error("Error fetching login history:", error.message);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to retrieve login history.", 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
+  }
+  const uid = req.params.id
+
   res.json({ message: `Login history for user ID: ${req.params.id}` });
 });
 //TEST:
@@ -267,10 +283,12 @@ app.get("/users/details/:userId", async (req, res) => {
 });
 
 //login logout
-//DONE:
+//DONE:     // TEST: test access logging feature
 app.get("/login", async (req, res) => {
   try {
     let msg = null;
+    const userDevice = getDeviceInfo(req);
+
     if (req.body.token) {
       //validate token on redis here
       try {
@@ -300,7 +318,6 @@ app.get("/login", async (req, res) => {
         if (tocheck) {
           tocheck = JSON.parse(tocheck);
           if (tocheck.lockout) {
-            // record login failure
             return res.json({
               success: false,
               message: "Account locked due to too many failed login attempts",
@@ -338,6 +355,13 @@ app.get("/login", async (req, res) => {
                 }),
                 { EX: 60 * 60 },
               ); // Lock account for 1 hour
+              createAccessLog({
+                ip: req.ip,
+                userIdOrToken: msg.user.id,
+                action: 'login',
+                device: userDevice,
+                successful: false
+              })
               return res.json({
                 success: false,
                 message: "Account locked due to too many failed login attempts",
@@ -353,6 +377,13 @@ app.get("/login", async (req, res) => {
               }),
               { EX: 60 * 60 },
             ); // Update failed attempts with expiration of 1 hour
+            createAccessLog({
+              ip: req.ip,
+              userIdOrToken: msg.user.id,
+              action: 'login',
+              device: userDevice,
+              successful: false
+            })
             return res.json({
               success: false,
               message: "Invalid username or password",
@@ -368,6 +399,13 @@ app.get("/login", async (req, res) => {
               }),
               { EX: 60 * 60 },
             );
+            createAccessLog({
+              ip: req.ip,
+              userIdOrToken: msg.user.id,
+              action: 'login',
+              device: userDevice,
+              successful: false
+            })
             return res.json({
               success: false,
               message: "Invalid username or password",
@@ -396,6 +434,15 @@ app.get("/login", async (req, res) => {
             { EX: 60 * 60 },
           ); // Set token with expiration of 1 hour
           msg.token = token;
+          
+          createAccessLog({
+            ip: req.ip,
+            userIdOrToken: msg.user.id,
+            device: userDevice,
+            action: 'login',
+            successful: true
+          })
+
         } catch (redisError) {
           console.error("Redis error during successful login:", redisError);
           return res.status(500).json({ 
@@ -419,13 +466,32 @@ app.get("/login", async (req, res) => {
 app.get("/logout", async (req, res) => {
   try {
     // Logic for user logout
+    const userDevice = getDeviceInfo(req);
     if (req.body.token) {
       //invalidate token on redis here
       try {
         await RDclient.del(req.body.token);
+        
+        createAccessLog({
+          ip: req.ip,
+          userIdOrToken: req.body.token,
+          device: userDevice,
+          action: 'logout',
+          successful: true
+        })
+
         res.json({ success: true, message: "Logout successful" });
       } catch (redisError) {
         console.error("Redis error during logout:", redisError);
+        
+        createAccessLog({
+          ip: req.ip,
+          userIdOrToken: req.body.token,
+          device: userDevice,
+          action: 'logout',
+          successful: false
+        })
+        
         return res.status(500).json({ 
           success: false, 
           message: "Logout error. Please try again." 

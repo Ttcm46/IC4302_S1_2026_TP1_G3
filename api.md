@@ -16,7 +16,7 @@ Se asegura de que las BD esten conectadas y configuradas correctamente y si no l
 [POST: /users/create](http://localhost:3000/users/create)
 
 Request body:
-```
+```json
 {
   "name": "John Doe",
   "username": "12",
@@ -30,12 +30,12 @@ Request body:
 ### search user 
 #### by id 
 Body 
-```
+```json
 "type":"id"
 "id":"#########"
 ```
 #### by properties
-```
+```json
 "field":"#########",
 "value":"####"
 ```
@@ -43,7 +43,7 @@ o no enviar anada para obtenerlos todos
 
 ## Login
 [Request body](http://localhost:3000/login)
-```
+```json
 {
   "username":"xyz",
   "password":"xyz"
@@ -51,14 +51,14 @@ o no enviar anada para obtenerlos todos
 ```
 
 o con token de inicio de sesion
-```
+```json
 {
   "token":"#########################"
 }
 ```
 ## Logout
 [Request body](http://localhost:3000/logout)
-```
+```json
 {
   "token":"#########################"
 }
@@ -86,7 +86,7 @@ Formato del documento de registro de acceso:
 ## Resetting / updating passwords
 ### Reset password
 el metodo asigan un nuevo password aleatorio, devuelve estado y nuevio password
-```
+```json
 {
   "username": "#############"
 }
@@ -96,7 +96,7 @@ el metodo asigan un nuevo password aleatorio, devuelve estado y nuevio password
 **PUT** `http://localhost:3000/users/update/password/{id}`
 
 Request body:
-```
+```json
 {
   "newpassword":"#############", //nuevo password
   "password":"##########" //viejo para confirmar
@@ -106,11 +106,45 @@ Request body:
 ### Get User Log
 **GET** `http://localhost:3000/users/log/{id}`
 
+Obtiene el historial de accesos de un usuario (intentos de login/logout).
+
+Path params:
+```json
+{
+  "id": "user_123"
+}
+```
+
+Respuesta exitosa (200):
+```json
+{
+  "message": "Login history for user ID: user_123",
+  "logs": [
+    {
+      "ip": "192.168.1.20",
+      "userId": "user_123",
+      "device": {
+        "type": "mobile",
+        "vendor": "Samsung",
+        "model": "Galaxy S24"
+      },
+      "action": "login",
+      "successful": true,
+      "createdAt": "2026-04-25T16:00:00.000Z",
+      "updatedAt": "2026-04-25T16:00:00.000Z"
+    }
+  ]
+}
+```
+
+Posibles respuestas de error:
+- 500: Error al consultar el historial de accesos.
+
 ### Set User Role
 **POST** `http://localhost:3000/users/role/{id}`
 
 Request body:
-```
+```json
 {
   "role": "student|professor|admin"
 }
@@ -123,7 +157,7 @@ Request body:
 **POST** `http://localhost:3000/users/friends/request/{id}`
 
 Request body:
-```
+```json
 {
   "friendId": "user_id_to_befriend"
 }
@@ -139,7 +173,7 @@ Request body:
 **POST** `http://localhost:3000/users/friends/accept/{id}`
 
 Request body:
-```
+```json
 {
   "friendId": "user_id_to_accept"
 }
@@ -149,7 +183,7 @@ Request body:
 **POST** `http://localhost:3000/users/friends/reject/{id}`
 
 Request body:
-```
+```json
 {
   "friendId": "user_id_to_reject"
 }
