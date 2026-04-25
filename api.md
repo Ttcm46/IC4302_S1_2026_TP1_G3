@@ -41,6 +41,44 @@ Body
 ```
 o no enviar anada para obtenerlos todos
 
+### Get Friends
+**GET** `/users/friends?id={id}`
+
+Obtiene los amigos de un usuario
+
+**Parameters:**
+- `id` (query): User ID
+
+**Response:**
+```json
+{
+  "message": "Friends list for user ID: 123",
+  "friends": ["friend1", "friend2"]
+}
+```
+
+### Add Friend
+**POST** `/users/friends/request?id={id}`
+
+Adds a friend to the user's friends list.
+
+**Parameters:**
+- `id` (query): Friend's User ID
+
+**Request Body:**
+```json
+{
+  "id": "friendtoaddID"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Friend added successfully"
+}
+```
+
 ## Login
 [Request body](http://localhost:3000/login)
 ```json
@@ -93,7 +131,7 @@ el metodo asigan un nuevo password aleatorio, devuelve estado y nuevio password
 ```
 
 ### Update Password
-**PUT** `http://localhost:3000/users/update/password/{id}`
+**PUT** `http://localhost:3000/users/update/password?id={id}`
 
 Request body:
 ```json
@@ -104,7 +142,7 @@ Request body:
 ```
 
 ### Get User Log
-**GET** `http://localhost:3000/users/log/{id}`
+**GET** `http://localhost:3000/users/log?id={id}`
 
 Obtiene el historial de accesos de un usuario (intentos de login/logout).
 
@@ -141,7 +179,7 @@ Posibles respuestas de error:
 - 500: Error al consultar el historial de accesos.
 
 ### Set User Role
-**POST** `http://localhost:3000/users/role/{id}`
+**POST** `http://localhost:3000/users/role?id={id}`
 
 Request body:
 ```json
@@ -151,10 +189,10 @@ Request body:
 ```
 
 ### Get User Role
-**GET** `http://localhost:3000/users/role/{id}`
+**GET** `http://localhost:3000/users/role?id={id}`
 
 ### Send Friend Request
-**POST** `http://localhost:3000/users/friends/request/{id}`
+**POST** `http://localhost:3000/users/friends/request?id={id}`
 
 Request body:
 ```json
@@ -164,13 +202,13 @@ Request body:
 ```
 
 ### Get Friends
-**GET** `http://localhost:3000/users/friends/{id}`
+**GET** `http://localhost:3000/users/friends?id={id}`
 
 ### Get Friend Requests
-**GET** `http://localhost:3000/users/friends/requests/{id}`
+**GET** `http://localhost:3000/users/friends/requests?id={id}`
 
 ### Accept Friend Request
-**POST** `http://localhost:3000/users/friends/accept/{id}`
+**POST** `http://localhost:3000/users/friends/accept?id={id}`
 
 Request body:
 ```json
@@ -180,7 +218,7 @@ Request body:
 ```
 
 ### Reject Friend Request
-**POST** `http://localhost:3000/users/friends/reject/{id}`
+**POST** `http://localhost:3000/users/friends/reject?id={id}`
 
 Request body:
 ```json
@@ -190,13 +228,10 @@ Request body:
 ```
 
 ### Get User Courses
-**GET** `http://localhost:3000/users/courses/{id}`
-
-Alternative query parameter format:
-**GET** `http://localhost:3000/users/courses?id={studentId}`
+**GET** `http://localhost:3000/users/courses?id={id}`
 
 ### Get User Details with Courses
-**GET** `http://localhost:3000/users/details/{userId}`
+**GET** `http://localhost:3000/users/details?userId={userId}`
 
 Returns user information along with enrolled courses.
 
@@ -219,7 +254,7 @@ Request body:
 ```
 
 ### 2. Add a section to a course
-**POST** `http://localhost:3000/courses/section/{id}`
+**POST** `http://localhost:3000/courses/section?id={id}`
 
 Request body:
 ```json
@@ -260,7 +295,7 @@ Request body:
 ```
 
 ### 5. Update course status
-**PUT** `http://localhost:3000/courses/status/{id}`
+**PUT** `http://localhost:3000/courses/status?id={id}`
 
 Request body:
 ```json
@@ -321,7 +356,7 @@ Returns class information, evaluations, students, and sections.
 **GET** `http://localhost:3000/courses/evaluations/{classCode}`
 
 ### 14. Submit evaluation
-**POST** `http://localhost:3000/courses/submit/{id}`
+**POST** `http://localhost:3000/courses/submit?id={id}`
 
 Request body:
 ```json
@@ -332,12 +367,12 @@ Request body:
 ```
 
 ### 15. Get grades for a course
-**GET** `http://localhost:3000/courses/grades/{id}`
+**GET** `http://localhost:3000/courses/grades?id={id}`
 
 ## Messages
 
 ### Send Message
-**POST** `http://localhost:3000/messages/send/{id}`
+**POST** `http://localhost:3000/messages/send?id={id}`
 
 Request body:
 ```json
@@ -349,10 +384,10 @@ Request body:
 ```
 
 ### Get Inbox Messages
-**GET** `http://localhost:3000/messages/inbox/{id}`
+**GET** `http://localhost:3000/messages/inbox?id={id}`
 
 ### Start New Conversation
-**POST** `http://localhost:3000/messages/conversation/{id}`
+**POST** `http://localhost:3000/messages/conversation?id={id}`
 
 Request body:
 ```json
