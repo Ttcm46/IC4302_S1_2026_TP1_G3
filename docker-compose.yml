@@ -102,29 +102,29 @@ services:
     container_name: redisinsight
     ports:
       - "32771:5540" 
-  neo4j:
-    image: neo4j:latest
-    container_name: neo4j
-    ports:
-      - "7474:7474" # HTTP
-      - "7687:7687" # Bolt
-    environment:
-      - NEO4J_AUTH=none
-    networks:
-      - app-network
+  # neo4j:
+  #   image: neo4j:latest
+  #   container_name: neo4j
+  #   ports:
+  #     - "7474:7474" # HTTP
+  #     - "7687:7687" # Bolt
+  #   environment:
+  #     - NEO4J_AUTH=none
+  #   networks:
+  #     - app-network
 
 networks:
   app-network:
     driver: bridge
-  # api:
-  #   build: .
-  #   container_name: api
-  #   environment:
-  #     - PORT=3000
-  #     - RAVENDB_URL=http://ravendb:8080
-  #     - RAVENDB_DB=test
-  #   ports:
-  #     - "3000:3000"
+# api:
+#   build: .
+#   container_name: api
+#   environment:
+#     - PORT=3000
+#     - RAVENDB_URL=http://ravendb:8080
+#     - RAVENDB_DB=test
+#   ports:
+#     - "3000:3000"
 
 #volumes:
 #  ravendb_data: # TODO

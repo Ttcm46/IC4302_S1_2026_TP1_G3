@@ -36,7 +36,6 @@ async function CreateUser(data = {},store) {
     const username = data.username || "anonymous";
     const salt = crypto.createHash("sha256").update(username).digest("hex");
     const passwordInput = typeof data.password === "string" ? data.password : "secret";
-
     const user = {
       name: data.name || "John Doe",
       username,
@@ -46,7 +45,7 @@ async function CreateUser(data = {},store) {
       picPath: data.picPath || null,
       typeofuser: typeof data.typeofuser === "string" ? data.typeofuser : "student",
       correo: data.correo || null,
-      friends = []
+      friends: []
     };
 
     await session.store(user,"user/");
