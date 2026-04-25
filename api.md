@@ -63,6 +63,26 @@ o con token de inicio de sesion
   "token":"#########################"
 }
 ```
+
+### AccessLog (Mongo)
+Formato del documento de registro de acceso:
+```json
+{
+  "ip": "192.168.1.20",
+  "userId": "user_123",
+  "device": {
+    "type": "mobile",
+    "vendor": "Samsung",
+    "model": "Galaxy S24"
+  },
+  "action": "login",
+  "successful": true
+}
+```
+
+`action` solo admite los valores `login` o `logout`.
+`userId` es obligatorio y debe identificar al usuario que ejecuta la acción.
+
 ## Resetting / updating passwords
 ### Reset password
 el metodo asigan un nuevo password aleatorio, devuelve estado y nuevio password

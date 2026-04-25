@@ -117,10 +117,12 @@ services:
     container_name: mongo
     restart: always
     ports:
-      - "8081:8081"
+      - "27017:27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=admin
+    networks:
+      - app-network
 
 networks:
   app-network:

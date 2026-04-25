@@ -33,6 +33,7 @@ import {
   getCreatedClasses
 
 } from "./clases.js";
+import { initializeMongo } from "./accessLogs.js";
 import { get } from "http";
 
 dotenv.config();
@@ -45,10 +46,6 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
 
-// Connect to mongodb
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => app.listen(8081))
-  .catch(err => console.error(err));
 // Global error handler middleware
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err.message);
@@ -303,6 +300,7 @@ app.get("/login", async (req, res) => {
         if (tocheck) {
           tocheck = JSON.parse(tocheck);
           if (tocheck.lockout) {
+            // record login failure
             return res.json({
               success: false,
               message: "Account locked due to too many failed login attempts",
@@ -673,6 +671,15 @@ app.listen(PORT, async () => {
       console.log("✓ Neo4j driver initialized successfully");
     } catch (error) {
       console.error("✗ Failed to initialize Neo4j:", error.message);
+    }
+
+    // Initialize MongoDB
+    try {
+      await initializeMongo();
+
+      console.log("✓ MongoDB connected successfully");
+    } catch (error) {
+      console.error("✗ Failed to initialize MongoDB:", error.message);
     }
 
     console.log("\n✓ All database connections initialized successfully!");
