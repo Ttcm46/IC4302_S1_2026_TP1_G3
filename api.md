@@ -41,6 +41,44 @@ Body
 ```
 o no enviar anada para obtenerlos todos
 
+### Get Friends
+**GET** `/users/friends/:id`
+
+Obtiene los amigos de un usuario
+
+**Parameters:**
+- `id` (path): User ID
+
+**Response:**
+```json
+{
+  "message": "Friends list for user ID: 123",
+  "friends": ["friend1", "friend2"]
+}
+```
+
+### Add Friend
+**POST** `/users/friends/request/:id`
+
+Adds a friend to the user's friends list.
+
+**Parameters:**
+- `id` (path): Friend's User ID
+
+**Request Body:**
+```json
+{
+  "id": "currentUserId"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Friend added successfully"
+}
+```
+
 ## Login
 [Request body](http://localhost:3000/login)
 ```

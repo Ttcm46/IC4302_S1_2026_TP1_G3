@@ -13,6 +13,8 @@ import {
   getUser,
   updateUser,
   loadUser,
+  getFriends,
+  addFriend,
 } from "./users.js";
 import { RedisinitializeStore } from "./redisStore.js";
 import {
@@ -199,14 +201,29 @@ app.get("/users/role/:id", async (req, res) => {
   res.json({ message: `Role for user ID: ${req.params.id}`, role: tmp.data?.typeofuser });
 });
 //TODO:
-app.post("/users/friends/request/:id", (req, res) => {
-  // Logic to send a friend request
-  res.json({ message: `Friend request sent to user ID: ${req.params.id}` });
+app.post("/users/friends/request/:id", async (req, res) => {
+  const userId = req.body.id;
+  const friendId = req.params.id;
+  
+  if (!userId || !friendId) {
+    return res.status(400).json({ message: "Missing userId or friendId" });
+  }
+  
+  const result = await addFriend(userId, friendId, store);
+  if (!result.success) {
+    return res.status(400).json({ message: result.message });
+  }
+  
+  res.json({ message: `Friend added successfully` });
 });
 //TODO:
-app.get("/users/friends/:id", (req, res) => {
-  // Logic to get the friends list of a user
-  res.json({ message: `Friends list for user ID: ${req.params.id}` });
+app.get("/users/friends/:id", async (req, res) => {
+  const id = req.params.id;
+  const result = await getFriends(id, store);
+  if (!result.success) {
+    return res.status(404).json({ message: result.message });
+  }
+  res.json({ message: `Friends list for user ID: ${id}`, friends: result.friends });
 });
 //TODO:
 app.get("/users/friends/requests/:id", (req, res) => {
