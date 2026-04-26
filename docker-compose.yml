@@ -95,6 +95,11 @@ services:
       - "6379:6379"
     networks:
       - app-network
+    healthcheck:
+        test: ["CMD", "redis-cli", "ping"]
+        interval: 5s
+        timeout: 3s
+        retries: 10
   redisinsight: ##UI
     networks:
       - app-network
@@ -136,12 +141,14 @@ services:
     depends_on:
       ravendb-node1:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     container_name: api
     environment:
       - PORT=3000
       - RAVENDB_URL=http://ravendb-node1:8080
       - RAVENDB_DB=test
-      - REDIS_URL=https://redis:6379
+      - REDIS_URL=redis://redis:6379
       - MAILPIT_URL=https://mailpit:8025
       - neo4j_URL=neo4j+s://ec7fd635.databases.neo4j.io
       - neo4j_USER=ec7fd635
