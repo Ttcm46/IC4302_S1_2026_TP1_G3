@@ -8,7 +8,8 @@ import neo4j from "neo4j-driver";
  * @returns {neo4j.Driver} The Neo4j driver
  */
 export function connectToNeo4j(uri, user, password) {
-  const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
+  const auth = (user && password) ? neo4j.auth.basic(user, password) : neo4j.auth.none();
+  const driver = neo4j.driver(uri, auth);
   return driver;
 }
 
@@ -21,18 +22,20 @@ export function connectToNeo4j(uri, user, password) {
  */
 export async function createClass(driver, data, creatorId) {
   const session = driver.session();
-  let classCode, name, description, startDate, endDate, fotoPath = null;
+  let classCode, name, description, startDate, endDate, fotoPath = null, isPublished, creatorUsername;
   classCode = data.classCode;
   name = data.name;
   description = data.description;
   startDate = data.startDate;
   endDate = data.endDate || "00/00/0000";
   fotoPath = data.fotoPath || null;
+  isPublished = data.isPublished ?? false;
+  creatorUsername = data.creatorUsername || null;
 
   try {
     await session.run(
-      "CREATE (c:Class {classCode: $classCode, name: $name, description: $description, creatorId: $creatorId, startDate: $startDate, endDate: $endDate, fotoPath: $fotoPath})",
-      { classCode, name, description, creatorId, startDate, endDate, fotoPath },
+      "CREATE (c:Class {classCode: $classCode, name: $name, description: $description, creatorId: $creatorId, creatorUsername: $creatorUsername, startDate: $startDate, endDate: $endDate, fotoPath: $fotoPath, isPublished: $isPublished})",
+      { classCode, name, description, creatorId, creatorUsername, startDate, endDate, fotoPath, isPublished },
     );
 
     const result = await session.run(
@@ -82,6 +85,57 @@ export async function addEvaluation(
   }
 }
 
+export async function updateEvaluation(
+  driver,
+  classCode,
+  evalId,
+  updates = {},
+) {
+  const session = driver.session();
+  try {
+    const payload = {
+      classCode,
+      evalId,
+      name: updates.name,
+      type: updates.type,
+      content: updates.content,
+    };
+
+    const result = await session.run(
+      `MATCH (c:Class {classCode: $classCode})-[:HAS_EVALUATION]->(e:Evaluation {evalId: $evalId})
+       SET e.name = coalesce($name, e.name),
+           e.type = coalesce($type, e.type),
+           e.content = coalesce($content, e.content)
+       RETURN e`,
+      payload,
+    );
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    return result.records[0].get("e").properties;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function deleteEvaluation(driver, classCode, evalId) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (c:Class {classCode: $classCode})-[r:HAS_EVALUATION]->(e:Evaluation {evalId: $evalId})
+       DELETE r, e
+       RETURN count(*) as deleted`,
+      { classCode, evalId },
+    );
+
+    return Number(result.records[0]?.get("deleted") || 0) > 0;
+  } finally {
+    await session.close();
+  }
+}
+
 /**
  * Add a student to a class
  * @param {neo4j.Driver} driver - The Neo4j driver
@@ -96,7 +150,7 @@ export async function addStudent(driver, classCode, studentId) {
       `MERGE (s:Student {studentId: $studentId})
        WITH s
        MATCH (c:Class {classCode: $classCode})
-       CREATE (c)-[:HAS_STUDENT]->(s)`,
+       MERGE (c)-[:HAS_STUDENT]->(s)`,
       { classCode, studentId },
     );
   } finally {
@@ -125,20 +179,17 @@ export async function addSection(
     if (isClassParent) {
       await session.run(
         `MATCH (c:Class {classCode: $parentId})
-         CREATE (s:Section {sectionId: $sectionId, description: $description}),
+         CREATE (s:Section {sectionId: $sectionId, description: $description, parentId: ''}),
                 (c)-[:HAS_SECTION]->(s)`,
         { parentId, sectionId, description },
       );
-    } else if (sectionId!=parentId){
+    } else {
       await session.run(
         `MATCH (p:Section {sectionId: $parentId})
-         CREATE (s:Section {sectionId: $sectionId, description: $description}),
+         CREATE (s:Section {sectionId: $sectionId, description: $description, parentId: $parentId}),
                 (p)-[:HAS_SUBSECTION]->(s)`,
         { parentId, sectionId, description },
       );
-    }
-    else{
-      return {message:"cant have a sub section and a sectrion with same id"}
     }
   } finally {
     await session.close();
@@ -158,7 +209,7 @@ export async function getClassDetails(driver, classCode) {
       `MATCH (c:Class {classCode: $classCode})
        OPTIONAL MATCH (c)-[:HAS_EVALUATION]->(e:Evaluation)
        OPTIONAL MATCH (c)-[:HAS_STUDENT]->(s:Student)
-       OPTIONAL MATCH (c)-[:HAS_SECTION]->(sec:Section)
+       OPTIONAL MATCH (c)-[:HAS_SECTION|HAS_SUBSECTION*]->(sec:Section)
        RETURN c, collect(e) as evaluations, collect(s) as students, collect(sec) as sections`,
       { classCode },
     );
@@ -242,6 +293,26 @@ export async function getSections(driver, parentId, isClass = true) {
   }
 }
 
+export async function getSectionById(driver, sectionId) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (s:Section {sectionId: $sectionId})
+       RETURN s
+       LIMIT 1`,
+      { sectionId },
+    );
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    return result.records[0].get("s").properties;
+  } finally {
+    await session.close();
+  }
+}
+
 /**
  * Update the description of a section
  * @param {neo4j.Driver} driver - The Neo4j driver
@@ -262,6 +333,94 @@ export async function updateSection(driver, sectionId, description) {
   }
 }
 
+export async function deleteSection(driver, sectionId) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (s:Section {sectionId: $sectionId})
+       OPTIONAL MATCH (s)-[:HAS_SUBSECTION*0..]->(child:Section)
+       WITH collect(DISTINCT child) AS nodes
+       UNWIND nodes AS node
+       DETACH DELETE node
+       RETURN count(node) AS deleted`,
+      { sectionId },
+    );
+
+    return Number(result.records[0]?.get("deleted") || 0) > 0;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateClass(driver, classCode, updates = {}) {
+  const session = driver.session();
+  try {
+    const payload = {
+      classCode,
+      name: updates.name,
+      description: updates.description,
+      startDate: updates.startDate,
+      endDate: updates.endDate,
+      fotoPath: updates.fotoPath,
+    };
+
+    const result = await session.run(
+      `MATCH (c:Class {classCode: $classCode})
+       SET c.name = coalesce($name, c.name),
+           c.description = coalesce($description, c.description),
+           c.startDate = coalesce($startDate, c.startDate),
+           c.endDate = coalesce($endDate, c.endDate),
+           c.fotoPath = coalesce($fotoPath, c.fotoPath)
+       RETURN c`,
+      payload,
+    );
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    return result.records[0].get("c").properties;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function setClassPublishedState(driver, classCode, isPublished) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (c:Class {classCode: $classCode})
+       SET c.isPublished = $isPublished
+       RETURN c`,
+      { classCode, isPublished: !!isPublished },
+    );
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    return result.records[0].get("c").properties;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function deleteClass(driver, classCode) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (c:Class {classCode: $classCode})
+       DETACH DELETE c
+       RETURN count(*) AS deleted`,
+      { classCode },
+    );
+
+    return Number(result.records[0]?.get("deleted") || 0) > 0;
+  } finally {
+    await session.close();
+  }
+}
+
 /**
  * Clone a class with the same properties and optional new creator
  * @param {neo4j.Driver} driver - The Neo4j driver
@@ -270,7 +429,7 @@ export async function updateSection(driver, sectionId, description) {
  * @param {string|null} creatorId - Optional creator ID for the cloned class
  * @returns {Promise<Object|null>} The cloned class properties or null
  */
-export async function cloneClass(driver, sourceClassCode, newClassCode, creatorId = null) {
+export async function cloneClass(driver, sourceClassCode, newClassCode, creatorId = null, overrides = {}) {
   const session = driver.session();
   try {
     const result = await session.run(     //https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZndxcXUxZmNnaGs3N2o1dnZyYmU0bWcyemwyaHNrMDM5Mm5sMmZlZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LrQdI5XBVw8mdMDfFN/giphy.gif 
@@ -279,7 +438,17 @@ export async function cloneClass(driver, sourceClassCode, newClassCode, creatorI
        OPTIONAL MATCH (c)-[:HAS_SECTION]->(s:Section)
        OPTIONAL MATCH (c)-[:HAS_STUDENT]->(st:Student)
        WITH c, collect(DISTINCT e) as evaluations, collect(DISTINCT s) as sections, collect(DISTINCT st) as students
-       CREATE (clone:Class {classCode: $newClassCode, name: c.name, description: c.description, creatorId: coalesce($creatorId, c.creatorId), startDate: c.startDate, endDate: c.endDate, fotoPath: c.fotoPath})
+       CREATE (clone:Class {
+         classCode: $newClassCode,
+         name: coalesce($name, c.name),
+         description: coalesce($description, c.description),
+         creatorId: coalesce($creatorId, c.creatorId),
+         creatorUsername: c.creatorUsername,
+         startDate: coalesce($startDate, c.startDate),
+         endDate: coalesce($endDate, c.endDate),
+         fotoPath: coalesce($fotoPath, c.fotoPath),
+         isPublished: false
+       })
        WITH clone, evaluations, sections, students
        UNWIND evaluations as ev
          CREATE (ce:Evaluation {evalId: ev.evalId, name: ev.name, type: ev.type, content: ev.content})
@@ -293,7 +462,16 @@ export async function cloneClass(driver, sourceClassCode, newClassCode, creatorI
          MERGE (s:Student {studentId: st.studentId})
          CREATE (clone)-[:HAS_STUDENT]->(s)
        RETURN clone`,
-      { sourceClassCode, newClassCode, creatorId },
+      {
+        sourceClassCode,
+        newClassCode,
+        creatorId,
+        name: overrides.name,
+        description: overrides.description,
+        startDate: overrides.startDate,
+        endDate: overrides.endDate,
+        fotoPath: overrides.fotoPath,
+      },
     );
 
     if (result.records.length === 0) {
@@ -546,13 +724,22 @@ export async function sendSampleData(driver) {
  * @param {string} studentId - Student ID
  * @returns {Promise<Array>} List of classes the student is enrolled in
  */
-export async function getEnrolledClasses(driver, studentId) {
+export async function getEnrolledClasses(driver, studentId, username = null) {
   const session = driver.session();
   try {
+    const ids = [studentId, username]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+
+    if (ids.length === 0) {
+      return [];
+    }
+
     const result = await session.run(
-      `MATCH (c:Class)-[:HAS_STUDENT]->(s:Student {studentId: $studentId})
-       RETURN c`,
-      { studentId },
+      `MATCH (c:Class)-[:HAS_STUDENT]->(s:Student)
+       WHERE s.studentId IN $ids
+       RETURN DISTINCT c`,
+      { ids },
     );
     return result.records.map((record) => record.get("c").properties);
   } finally {

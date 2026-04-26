@@ -1,166 +1,151 @@
 import mongoose from "mongoose";
-import { UAParser } from 'ua-parser-js';
+import { UAParser } from "ua-parser-js";
 
 const { Schema } = mongoose;
 
 /**
  * Initializes MongoDB connection using Mongoose
- * @async
- * @param {string} [uri=process.env.MONGO_URI || "mongodb://root:admin@mongo:27017/?authSource=admin"] - MongoDB connection URI
- * @returns {Promise<mongoose.Connection>} The established MongoDB connection
- * @throws {Error} If connection fails within serverSelectionTimeoutMS
+ * @param {string} uri - MongoDB connection URI
+ * @returns {Promise<mongoose.Connection>}
  */
 async function initializeMongo(
-    uri = process.env.MONGO_URI || "mongodb://root:admin@mongo:27017/?authSource=admin",
+  uri = process.env.mongodb_URL || process.env.MONGO_URI || "mongodb://localhost:27017",
 ) {
-    await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 5000,
-    });
-
-    return mongoose.connection;
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 5000,
+  });
+  return mongoose.connection;
 }
 
-/**
- * Mongoose schema for device information
- * @type {mongoose.Schema}
- * @property {string} type - Device type (required)
- * @property {string} vendor - Device vendor/manufacturer (required)
- * @property {string} model - Device model name (required)
- */
 const DeviceSchema = new Schema(
-    {
-        type: {
-            type: String,
-            required: true,
-        },
-        vendor: {
-            type: String,
-            required: true,
-        },
-        model: {
-            type: String,
-            required: true,
-        },
-    },
-    { _id: false },
+  {
+    type: { type: String, required: true },
+    vendor: { type: String, required: true },
+    model: { type: String, required: true },
+  },
+  { _id: false },
 );
 
-/**
- * Mongoose schema for access logs
- * @type {mongoose.Schema}
- * @property {string} ip - IP address of the access attempt (required)
- * @property {string} userId - User identifier associated with the access attempt
- * @property {DeviceSchema} device - Device information
- * @property {string} action - Access action type: login or logout (required)
- * @property {boolean} successful - Whether the access was successful
- * @property {Date} createdAt - Timestamp of log creation (auto-generated)
- * @property {Date} updatedAt - Timestamp of last update (auto-generated)
- */
 const AccessLogSchema = new Schema(
-    {
-        ip: {
-            type: String,
-            required: true,
-        },
-        userId: {
-            type: String,
-            required: false,
-        },
-        device: {
-            type: DeviceSchema,
-            required: false,
-        },
-        action: {
-            type: String,
-            required: true,
-            enum: ["login", "logout"],
-        },
-        successful: {
-            type: Boolean,
-            required: false,
-        },
-    },
-    { timestamps: true },
+  {
+    ip: { type: String, required: true },
+    userId: { type: String, required: false },
+    device: { type: DeviceSchema, required: false },
+    action: { type: String, required: true, enum: ["login", "logout"] },
+    successful: { type: Boolean, required: false },
+  },
+  { timestamps: true },
 );
 
-/**
- * AccessLog model for MongoDB
- * @type {mongoose.Model}
- */
 const AccessLog = mongoose.models.AccessLog || mongoose.model("AccessLog", AccessLogSchema);
 
+/**
+ * Parses User-Agent header into device info object.
+ * Returns undefined if header is missing or device fields are not strings.
+ * @param {import('express').Request} req
+ * @returns {{ type: string, vendor: string, model: string } | undefined}
+ */
+function getDeviceInfo(req) {
+  const ua = req.headers["user-agent"];
+  if (!ua) return undefined;
 
-async function getDeviceInfo(req) {
-    const ua = req.headers['user-agent'];
-    if (!ua) {
-        return undefined;
-    }
+  if (typeof UAParser !== "function") {
+    return undefined;
+  }
 
+  let result;
+  try {
     const parser = new UAParser(ua);
-    const result = parser.getResult();
-    const device = {
-        type: result.device.type || 'desktop',
-        vendor: result.device.vendor,
-        model: result.device.model,
-    };
+    result = parser.getResult();
+  } catch {
+    return undefined;
+  }
 
-    const isValidDevice =
-        typeof device.type === "string" &&
-        typeof device.vendor === "string" &&
-        typeof device.model === "string";
+  const device = {
+    type: result?.device?.type || "desktop",
+    vendor: result?.device?.vendor,
+    model: result?.device?.model,
+  };
 
-    if (!isValidDevice) {
-        return undefined;
-    }
+  if (
+    typeof device.type !== "string" ||
+    typeof device.vendor !== "string" ||
+    typeof device.model !== "string"
+  ) {
+    return undefined;
+  }
 
-    return device;
+  return device;
 }
 
 /**
- * Creates a new access log entry in the database
- * @async
- * @param {Object} params - Parameters object
- * @param {string} params.ip - IP address of the access attempt
- * @param {string} params.userIdOrToken - User identifier or token associated with the access attempt
- * @param {Object} params.device - Device information object
- * @param {string} params.device.type - Device type
- * @param {string} params.device.vendor - Device vendor
- * @param {string} params.device.model - Device model
- * @param {string} params.action - Access action type: login or logout
- * @param {boolean} params.successful - Whether the access was successful
- * @returns {Promise<mongoose.Document>} The created access log document
- * @throws {Error} If any required field is missing or invalid
+ * Creates a new access log entry in MongoDB.
+ * Silently skips if required fields are missing/invalid — never throws.
+ * @param {{ ip: string, userId: string, device?: object, action: string, successful?: boolean }} params
  */
-async function createAccessLog({ ip, userIdOrToken, userId, device, action, successful }) {
-    const hasValidUserId = typeof userId === "string" && userId.trim().length > 0;
-    const hasValidAction = action === "login" || action === "logout";
-    const hasValidDevice =
-        device === undefined ||
-        (device &&
-            typeof device === "object" &&
-            typeof device.type === "string" &&
-            typeof device.vendor === "string" &&
-            typeof device.model === "string");
-    const hasValidSuccessful = successful === undefined || typeof successful === "boolean";
+async function createAccessLog({ ip, userId, device, action, successful }) {
+  const hasValidUserId = typeof userId === "string" && userId.trim().length > 0;
+  const hasValidAction = action === "login" || action === "logout";
+  const hasValidDevice =
+    device === undefined ||
+    (device &&
+      typeof device.type === "string" &&
+      typeof device.vendor === "string" &&
+      typeof device.model === "string");
+  const hasValidSuccessful = successful === undefined || typeof successful === "boolean";
 
-    if (!ip || !hasValidUserId || !hasValidDevice || !hasValidAction || !hasValidSuccessful) {
-        throw new Error(
-            "Invalid access log payload. Required: ip, userId, action(login|logout). Optional: device{type,vendor,model}, successful(boolean)",
-        );
-    }
+  if (!ip || !hasValidUserId || !hasValidDevice || !hasValidAction || !hasValidSuccessful) {
+    return; // skip invalid payloads silently
+  }
 
-    const payload = { ip, userId, action };
+  const payload = { ip, userId, action };
+  if (device !== undefined) payload.device = device;
+  if (successful !== undefined) payload.successful = successful;
 
-    if (device !== undefined) {
-        payload.device = device;
-    }
-
-    if (successful !== undefined) {
-        payload.successful = successful;
-    }
-
-    const log = await AccessLog.create(payload);
-    return log;
+  try {
+    await AccessLog.create(payload);
+  } catch (err) {
+    // Log errors but don't crash the caller
+    console.error("accessLogs: failed to write log entry:", err.message);
+  }
 }
 
-export { initializeMongo, AccessLogSchema, AccessLog, createAccessLog, getDeviceInfo };
+// ============================================================
+// Messages
+// ============================================================
+const MessageSchema = new Schema(
+  {
+    fromUserId: { type: String, required: true },
+    toUserId:   { type: String, required: true },
+    content:    { type: String, required: true },
+    read:       { type: Boolean, default: false },
+  },
+  { timestamps: true },
+);
+
+const Message = mongoose.models.Message || mongoose.model("Message", MessageSchema);
+
+async function createMessage({ fromUserId, toUserId, content }) {
+  return Message.create({ fromUserId, toUserId, content });
+}
+
+async function getInboxMessages(userId) {
+  return Message.find({ toUserId: userId }).sort({ createdAt: -1 }).lean();
+}
+
+async function getConversationMessages(userId, otherUserId) {
+  return Message.find({
+    $or: [
+      { fromUserId: userId, toUserId: otherUserId },
+      { fromUserId: otherUserId, toUserId: userId },
+    ],
+  })
+    .sort({ createdAt: 1 })
+    .lean();
+}
+
+export {
+  initializeMongo,
+  AccessLogSchema, AccessLog, createAccessLog, getDeviceInfo,
+  Message, createMessage, getInboxMessages, getConversationMessages,
+};

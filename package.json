@@ -1,7 +1,7 @@
 {
   "name": "ic4302_s1_2026_tp1_g3",
   "version": "1.0.0",
-  "description": "Tecdigitalito",
+  "description": "TecDigitalito - Full Stack Virtual Classroom Platform",
   "keywords": [
     "IC4302",
     "Tecdigitalito"
@@ -18,11 +18,20 @@
   "author": "IC4302_S1_2026_TP1_G3",
   "type": "module",
   "main": "server.js",
+  "workspaces": [
+    "client"
+  ],
   "scripts": {
     "start": "node server.js",
+    "dev:server": "node server.js",
+    "dev:client": "npm run dev --workspace=client",
+    "dev": "npm run dev --workspace=client",
+    "build": "npm run build --workspace=client",
+    "preview": "npm run preview --workspace=client",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "mailpit-api": "^1.9.0",
