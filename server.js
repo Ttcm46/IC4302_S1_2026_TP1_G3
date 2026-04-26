@@ -1,4 +1,5 @@
 import express, { json } from "express";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import crypto from "crypto";
 import { promises as fs } from "fs";
@@ -35,12 +36,14 @@ import {
   getCreatedClasses
 
 } from "./clases.js";
-import { 
-  createAccessLog, 
-  initializeMongo, 
-  getDeviceInfo } from "./accessLogs.js";
+import {
+  createAccessLog,
+  initializeMongo,
+  getDeviceInfo
+} from "./accessLogs.js";
 import { MailpitClientStarter, sendEmail } from "./mailpit.js";
 import { get } from "http";
+import { createMessage, getInboxMessages, getConversationMessages } from "./messages.js";
 
 dotenv.config();
 //constantes de cleintes de acceso de BD para reciclarlos segun se necesite
@@ -52,6 +55,7 @@ let MPClient = null;
 const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
 // Global error handler middleware
 app.use((err, req, res, next) => {
@@ -140,10 +144,10 @@ app.post("/users/create", async (req, res) => {
     res.json({ message: "User created successfully", data: data });
   } catch (error) {
     console.error("Error creating user:", error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Failed to create user. Please try again.", 
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      message: "Failed to create user. Please try again.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -161,12 +165,12 @@ app.post("/users/reset", async (req, res) => {
     .digest("hex")
     .slice(0, 8);
 
-  tmp.data.password=tmppass
+  tmp.data.password = tmppass
   await updateUser(tmp.data.id, tmp.data, store);
 
   const result = await loadUser(req.body.username, store);
   RDclient.del(tmp.data.id); // Invalidate any existing sessions for the user
-  sendEmail(MPClient,null,null,"Contraseña Reestablecida",`Su contraseña ha sido reestablecida, su contraseña temporal es: ${tmppass}`)
+  sendEmail(MPClient, null, null, "Contraseña Reestablecida", `Su contraseña ha sido reestablecida, su contraseña temporal es: ${tmppass}`)
   res.json({
     message: "Password reset successful, you temporal pass word is ",
     temporaryPassword: tmppass,
@@ -174,8 +178,8 @@ app.post("/users/reset", async (req, res) => {
 });
 //DONE: update password                   TEST: untested
 app.put("/users/update/password", (req, res) => {
-  updateUser(req.query.id, {password:req.body.newpassword}, store);
-  sendEmail(MPClient,null,null,"Contraseña Reestablecida",`Su contraseña ha sido reestablecida`)
+  updateUser(req.query.id, { password: req.body.newpassword }, store);
+  sendEmail(MPClient, null, null, "Contraseña Reestablecida", `Su contraseña ha sido reestablecida`)
   res.json({ message: "Password updated successfully" });
 });
 
@@ -185,7 +189,7 @@ app.get("/users", async (req, res) => {
     const data = await searchUserById(req.body.id, store);
     res.json({ message: "User search completed", data: data });
   } else {
-    const data = await searchUser(req.body);
+    const data = await searchUser(req.body, store);
     res.json({ message: "User search completed", data: data });
   }
 });
@@ -199,10 +203,10 @@ app.get("/users/log", async (req, res) => {
     res.json({ message: `Login history for user ID: ${uid}`, logs });
   } catch (error) {
     console.error("Error fetching login history:", error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Failed to retrieve login history.", 
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      message: "Failed to retrieve login history.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 
@@ -211,7 +215,7 @@ app.get("/users/log", async (req, res) => {
 //TEST:
 app.post("/users/role", (req, res) => {
   // Logic to assign a role to a user
-  updateUser(req.query.id, {password:req.body.newrole}, store)
+  updateUser(req.query.id, { password: req.body.newrole }, store)
   res.json({ message: `Role assigned to user ID: ${req.query.id}` });
 });
 //TEST:
@@ -224,16 +228,16 @@ app.get("/users/role", async (req, res) => {
 app.post("/users/friends/request", async (req, res) => {
   const userId = req.query.id;
   const friendId = req.body.id;
-  
+
   if (!userId || !friendId) {
     return res.status(400).json({ message: "Missing userId or friendId" });
   }
-  
+
   const result = await addFriend(userId, friendId, store);
   if (!result.success) {
     return res.status(400).json({ message: result.message });
   }
-  
+
   res.json({ message: `Friend added successfully` });
 });
 //TODO:
@@ -318,9 +322,9 @@ app.get("/login", async (req, res) => {
         }
       } catch (redisError) {
         console.error("Redis error during token validation:", redisError);
-        return res.status(500).json({ 
-          success: false, 
-          message: "Session validation error. Please try again." 
+        return res.status(500).json({
+          success: false,
+          message: "Session validation error. Please try again."
         });
       }
     } else {
@@ -330,7 +334,7 @@ app.get("/login", async (req, res) => {
         .createHash("sha256")
         .update(req.body.username)
         .digest("hex");
-      
+
       //validar que no haya lockout
       try {
         let tocheck = await RDclient.get(token);
@@ -345,9 +349,9 @@ app.get("/login", async (req, res) => {
         }
       } catch (redisError) {
         console.error("Redis error checking lockout:", redisError);
-        return res.status(500).json({ 
-          success: false, 
-          message: "Authentication service error. Please try again." 
+        return res.status(500).json({
+          success: false,
+          message: "Authentication service error. Please try again."
         });
       }
 
@@ -381,7 +385,7 @@ app.get("/login", async (req, res) => {
                 device: userDevice,
                 successful: false
               })
-              sendEmail(MPClient,null,null,"Bloqueo de cuenta","su cuenta se ha bloqueado por 1 hora")
+              sendEmail(MPClient, null, null, "Bloqueo de cuenta", "su cuenta se ha bloqueado por 1 hora")
               return res.json({
                 success: false,
                 message: "Account locked due to too many failed login attempts",
@@ -397,7 +401,7 @@ app.get("/login", async (req, res) => {
               }),
               { EX: 60 * 60 },
             ); // Update failed attempts with expiration of 1 hour
-            sendEmail(MPClient,null,null,"Intento de inicio de sesion fallido","Ha habido un intento fallido de inicio de sesion a su cuenta")
+            sendEmail(MPClient, null, null, "Intento de inicio de sesion fallido", "Ha habido un intento fallido de inicio de sesion a su cuenta")
             createAccessLog({
               ip: req.ip,
               userIdOrToken: msg.user.id,
@@ -434,9 +438,9 @@ app.get("/login", async (req, res) => {
           }
         } catch (redisError) {
           console.error("Redis error during failed login tracking:", redisError);
-          return res.status(500).json({ 
-            success: false, 
-            message: "Authentication service error. Please try again." 
+          return res.status(500).json({
+            success: false,
+            message: "Authentication service error. Please try again."
           });
         }
       }
@@ -450,12 +454,13 @@ app.get("/login", async (req, res) => {
               attempts: 0,
               lockout: false,
               token: token,
+              user: { id: msg.user.id },
               login: true,
             }),
             { EX: 60 * 60 },
           ); // Set token with expiration of 1 hour
           msg.token = token;
-          
+
           createAccessLog({
             ip: req.ip,
             userIdOrToken: msg.user.id,
@@ -466,9 +471,9 @@ app.get("/login", async (req, res) => {
 
         } catch (redisError) {
           console.error("Redis error during successful login:", redisError);
-          return res.status(500).json({ 
-            success: false, 
-            message: "Session creation error. Please try again." 
+          return res.status(500).json({
+            success: false,
+            message: "Session creation error. Please try again."
           });
         }
       }
@@ -476,9 +481,9 @@ app.get("/login", async (req, res) => {
     res.json(msg);
   } catch (error) {
     console.error("Unexpected error in /login:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Login failed. Please try again." 
+    res.status(500).json({
+      success: false,
+      message: "Login failed. Please try again."
     });
   }
 });
@@ -492,7 +497,7 @@ app.get("/logout", async (req, res) => {
       //invalidate token on redis here
       try {
         await RDclient.del(req.body.token);
-        
+
         createAccessLog({
           ip: req.ip,
           userIdOrToken: req.body.token,
@@ -504,7 +509,7 @@ app.get("/logout", async (req, res) => {
         res.json({ success: true, message: "Logout successful" });
       } catch (redisError) {
         console.error("Redis error during logout:", redisError);
-        
+
         createAccessLog({
           ip: req.ip,
           userIdOrToken: req.body.token,
@@ -512,10 +517,10 @@ app.get("/logout", async (req, res) => {
           action: 'logout',
           successful: false
         })
-        
-        return res.status(500).json({ 
-          success: false, 
-          message: "Logout error. Please try again." 
+
+        return res.status(500).json({
+          success: false,
+          message: "Logout error. Please try again."
         });
       }
     } else {
@@ -523,9 +528,9 @@ app.get("/logout", async (req, res) => {
     }
   } catch (error) {
     console.error("Unexpected error in /logout:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Logout failed. Please try again." 
+    res.status(500).json({
+      success: false,
+      message: "Logout failed. Please try again."
     });
   }
 });
@@ -546,10 +551,10 @@ app.post("/courses/create", async (req, res) => {
     res.json({ message: "Course created successfully", course: created });
   } catch (error) {
     console.error("Error creating course:", error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Failed to create course. Please try again.", 
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      message: "Failed to create course. Please try again.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -564,9 +569,9 @@ app.post("/courses/section", async (req, res) => {
 
   const result = await addSection(neo4jDriver, parentId, sectionId, description, isClassParent);
 
-  if (result ==null)
+  if (result == null)
     res.json({ message: "Section added successfully", sectionId, parentId, isClassParent });
-  res.json({message: "Couldnt add section",error:result})
+  res.json({ message: "Couldnt add section", error: result })
 });
 //DONE:
 app.put("/courses/section", async (req, res) => {
@@ -700,27 +705,135 @@ app.get("/courses/grades", (req, res) => {
 
 //messages
 //TODO:
-app.post("/messages/send", (req, res) => {
+app.post("/messages/send", async (req, res) => {
   // Logic to send a message
-  res.json({ message: "Message sent successfully" });
+  const authHeader = req.headers?.authorization;
+  const bearerToken = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length).trim()
+    : null;
+  const token = req.cookies?.accessToken || req.body?.token || bearerToken;
+  let senderIdFromToken = null;
+  if (token && RDclient) {
+    try {
+      const raw = await RDclient.get(token);
+      if (raw) {
+        const parsedToken = JSON.parse(raw);
+        senderIdFromToken = parsedToken?.user?.id || parsedToken?.uid || null;
+      }
+    } catch {/* does nothing */};
+  }
+
+  const fromUserId = senderIdFromToken || req.query.id || req.body.fromUserId;
+  const toUserId = req.body.toUserId || req.body.recipientId;
+  const content = req.body.content;
+
+  const hasValidFromUserId = typeof fromUserId === "string" && fromUserId.trim().length > 0;
+  const hasValidToUserId = typeof toUserId === "string" && toUserId.trim().length > 0;
+  const hasValidContent = typeof content === "string" && content.trim().length > 0;
+
+  if (!hasValidFromUserId || !hasValidToUserId || !hasValidContent) {
+    return res.status(400).json({ success: false, message: "Wrong format. Missing fromUserId, toUserId or content" })
+  }
+
+  try {
+    const msg = await createMessage({
+      fromUserId: fromUserId.trim(),
+      toUserId: toUserId.trim(),
+      content: content.trim(),
+    });
+    return res.json({success: true, message: "Message sent successfully", data: msg });
+  } catch (err) {
+    console.error("messages/send error:", err);
+    return res.status(500).json({ success: false, message: "Failed to send message" });
+  }
+  
 });
 //TODO:
-app.get("/messages/inbox", (req, res) => {
+app.get("/messages/inbox", async (req, res) => {
   // Logic to get inbox messages for a user
-  res.json({ message: `Inbox messages for user ID: ${req.query.id}` });
+  const authHeader = req.headers?.authorization;
+  const bearerToken = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length).trim()
+    : null;
+  const token = req.cookies?.accessToken || req.body?.token || bearerToken;
+
+  let userIdFromToken = null;
+  if (token && RDclient) {
+    try {
+      const raw = await RDclient.get(token);
+      if (raw) {
+        const parsedToken = JSON.parse(raw);
+        userIdFromToken = parsedToken?.user?.id || parsedToken?.uid || null;
+      }
+    } catch {/* does nothing */};
+  }
+
+  const userId = userIdFromToken || req.query.id || req.body?.userId;
+  const hasValidUserId = typeof userId === "string" && userId.trim().length > 0;
+
+  if (!hasValidUserId) {
+    return res.status(400).json({ success: false, message: "Wrong format. Missing userId" });
+  }
+
+  try {
+    const messages = await getInboxMessages(userId.trim());
+    return res.json({
+      success: true,
+      message: `Inbox messages for user ID: ${userId.trim()}`,
+      data: messages,
+    });
+  } catch (err) {
+    console.error("messages/inbox error:", err);
+    return res.status(500).json({ success: false, message: "Failed to fetch inbox messages" });
+  }
 });
 //TODO:
-app.post("/messages/conversation", (req, res) => {
-  // Logic to start a new conversation
-  res.json({
-    message: `New conversation started for user ID: ${req.query.id}`,
-  });
+app.post("/messages/conversation", async (req, res) => {
+  // Logic to get conversation messages between two users
+  const authHeader = req.headers?.authorization;
+  const bearerToken = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length).trim()
+    : null;
+  const token = req.cookies?.accessToken || req.body?.token || bearerToken;
+
+  let userIdFromToken = null;
+  if (token && RDclient) {
+    try {
+      const raw = await RDclient.get(token);
+      if (raw) {
+        const parsedToken = JSON.parse(raw);
+        userIdFromToken = parsedToken?.user?.id || parsedToken?.uid || null;
+      }
+    } catch {/* does nothing */};
+  }
+
+  const userId = userIdFromToken || req.query.id || req.body?.userId;
+  const otherUserId = req.body?.otherUserId || req.body?.toUserId || req.query?.otherUserId;
+
+  const hasValidUserId = typeof userId === "string" && userId.trim().length > 0;
+  const hasValidOtherUserId = typeof otherUserId === "string" && otherUserId.trim().length > 0;
+
+  if (!hasValidUserId || !hasValidOtherUserId) {
+    return res.status(400).json({ success: false, message: "Wrong format. Missing userId or otherUserId" });
+  }
+
+  try {
+    const conversation = await getConversationMessages(userId.trim(), otherUserId.trim());
+    return res.json({
+      success: true,
+      message: `Conversation messages for user ID: ${userId.trim()}`,
+      data: conversation,
+    });
+  } catch (err) {
+    console.error("messages/conversation error:", err);
+    return res.status(500).json({ success: false, message: "Failed to fetch conversation messages" });
+  }
 });
 
 app.post("/test", async (req, res) => {
   console.log("started test")
 
-  sendEmail(MPClient,null,null,"TEST","esto es una prueba")
+  sendEmail(MPClient, null, null, "TEST", "esto es una prueba")
   res.json({
     message: `Test Complete`,
   });
@@ -730,58 +843,58 @@ app.post("/test", async (req, res) => {
 app.listen(PORT, async () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
 
-    // Initialize RavenDB
-    try {
-      store = await RDBinitializeStore(
-        process.env.RAVENDB_URL || "http://localhost:8080",
-        process.env.RAVENDB_DB || "test",
-      );
-      console.log("✓ RavenDB store initialized successfully");
-    } catch (error) {
-      console.error("✗ Failed to initialize RavenDB:", error.message);
-    }
+  // Initialize RavenDB
+  try {
+    store = await RDBinitializeStore(
+      process.env.RAVENDB_URL || "http://localhost:8080",
+      process.env.RAVENDB_DB || "test",
+    );
+    console.log("✓ RavenDB store initialized successfully");
+  } catch (error) {
+    console.error("✗ Failed to initialize RavenDB:", error.message);
+  }
 
-    // Initialize Redis
-    try {
-      RDclient = await RedisinitializeStore(
-        process.env.REDIS_URL || "http://localhost:6379",
-        process.env.REDIS_DB || "0",
-      );
-      console.log("✓ Redis client initialized successfully");
-    } catch (error) {
-      console.error("✗ Failed to initialize Redis:", error.message);
-    }
+  // Initialize Redis
+  try {
+    RDclient = await RedisinitializeStore(
+      process.env.REDIS_URL || "http://localhost:6379",
+      process.env.REDIS_DB || "0",
+    );
+    console.log("✓ Redis client initialized successfully");
+  } catch (error) {
+    console.error("✗ Failed to initialize Redis:", error.message);
+  }
 
-    // Initialize Neo4j
-    try {
-      neo4jDriver = connectToNeo4j(
-        process.env.NEO4J_URL || "bolt://localhost:7687",
-        process.env.NEO4J_USER || "neo4j",
-        process.env.NEO4J_PASSWORD || "password"
-      );
-      console.log("✓ Neo4j driver initialized successfully");
-    } catch (error) {
-      console.error("✗ Failed to initialize Neo4j:", error.message);
-    }
+  // Initialize Neo4j
+  try {
+    neo4jDriver = connectToNeo4j(
+      process.env.NEO4J_URL || "bolt://localhost:7687",
+      process.env.NEO4J_USER || "neo4j",
+      process.env.NEO4J_PASSWORD || "password"
+    );
+    console.log("✓ Neo4j driver initialized successfully");
+  } catch (error) {
+    console.error("✗ Failed to initialize Neo4j:", error.message);
+  }
 
-    // Initialize MongoDB
-    try {
-      await initializeMongo();
+  // Initialize MongoDB
+  try {
+    await initializeMongo();
 
-      console.log("✓ MongoDB connected successfully");
-    } catch (error) {
-      console.error("✗ Failed to initialize MongoDB:", error.message);
-    }
+    console.log("✓ MongoDB connected successfully");
+  } catch (error) {
+    console.error("✗ Failed to initialize MongoDB:", error.message);
+  }
 
-    try{
-      MPClient = MailpitClientStarter(process.env.MAILPIT_URL||"http://localhost:8025")
-    }
-    catch(error){
-      console.error()
-    }
+  try {
+    MPClient = MailpitClientStarter(process.env.MAILPIT_URL || "http://localhost:8025")
+  }
+  catch (error) {
+    console.error()
+  }
 
-    console.log("\n✓ All database connections initialized successfully!");
-    console.log("Server is ready to accept requests.\n");
+  console.log("\n✓ All database connections initialized successfully!");
+  console.log("Server is ready to accept requests.\n");
 
-    //await sendSampleData(neo4jDriver);
+  //await sendSampleData(neo4jDriver);
 });
