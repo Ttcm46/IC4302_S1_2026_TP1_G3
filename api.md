@@ -377,22 +377,107 @@ Request body:
 Request body:
 ```json
 {
-  "recipientId": "user_id",
+  "fromUserId": "user_sender_id",
+  "toUserId": "user_receiver_id",
+  "recipientId": "user_receiver_id",
   "content": "Message content",
-  "type": "direct|group"
+  "token": "optional_session_token"
 }
 ```
+
+Notas:
+- `fromUserId` puede enviarse por query (`id`) o body, pero si hay token válido se usa el usuario del token.
+- `toUserId` y `recipientId` son equivalentes (puede usar cualquiera).
+- También se acepta token por cookie (`accessToken`) o header `Authorization: Bearer <token>`.
+
+Respuesta exitosa (200):
+```json
+{
+  "success": true,
+  "message": "Message sent successfully",
+  "data": {
+    "_id": "...",
+    "fromUserId": "user_sender_id",
+    "toUserId": "user_receiver_id",
+    "content": "Message content",
+    "createdAt": "2026-04-26T18:00:00.000Z",
+    "updatedAt": "2026-04-26T18:00:00.000Z"
+  }
+}
+```
+
+Errores:
+- `400`: formato inválido o faltan `fromUserId`, `toUserId`/`recipientId` o `content`.
+- `500`: error al guardar el mensaje.
 
 ### Get Inbox Messages
 **GET** `http://localhost:3000/messages/inbox?id={id}`
 
-### Start New Conversation
+Opcionalmente puede enviar:
+- `token` en body,
+- cookie `accessToken`,
+- o header `Authorization: Bearer <token>`.
+
+Si el token es válido, el `id` del query puede omitirse.
+
+Respuesta exitosa (200):
+```json
+{
+  "success": true,
+  "message": "Inbox messages for user ID: user_123",
+  "data": [
+    {
+      "_id": "...",
+      "fromUserId": "user_999",
+      "toUserId": "user_123",
+      "content": "Hola",
+      "read": false,
+      "createdAt": "2026-04-26T18:10:00.000Z",
+      "updatedAt": "2026-04-26T18:10:00.000Z"
+    }
+  ]
+}
+```
+
+Errores:
+- `400`: falta `userId` (ni query `id` ni token válido).
+- `500`: error al consultar bandeja.
+
+### Get Conversation Messages
 **POST** `http://localhost:3000/messages/conversation?id={id}`
 
 Request body:
 ```json
 {
-  "participantIds": ["user1", "user2"],
-  "name": "Conversation name (optional)"
+  "otherUserId": "user_456",
+  "toUserId": "user_456",
+  "userId": "user_123",
+  "token": "optional_session_token"
 }
 ```
+
+Notas:
+- El usuario principal se obtiene de token cuando está disponible; si no, usa `id` en query o `userId` en body.
+- El segundo usuario puede enviarse como `otherUserId` o `toUserId`.
+
+Respuesta exitosa (200):
+```json
+{
+  "success": true,
+  "message": "Conversation messages for user ID: user_123",
+  "data": [
+    {
+      "_id": "...",
+      "fromUserId": "user_123",
+      "toUserId": "user_456",
+      "content": "Hola",
+      "createdAt": "2026-04-26T18:00:00.000Z",
+      "updatedAt": "2026-04-26T18:00:00.000Z"
+    }
+  ]
+}
+```
+
+Errores:
+- `400`: faltan `userId` o `otherUserId`.
+- `500`: error al consultar conversación.
