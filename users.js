@@ -6,6 +6,7 @@ import { createClient } from "redis";
 
 // Create and initialize the store once y asegurar creacion de bd
 async function RDBinitializeStore(host = "http://localhost:8080", database = "test") {
+  console.log("starting RVDB connection")
   const serverUrl = host;
   const databaseName = database;
   

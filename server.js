@@ -718,7 +718,14 @@ app.post("/messages/conversation", (req, res) => {
 });
 
 app.post("/test", async (req, res) => {
-  sendEmail(MPClient,null,null,"TEST","esto es una prueba")
+  console.log("started test")
+
+  //sendEmail(MPClient,null,null,"TEST","esto es una prueba")
+  console.log(process.env.RAVENDB_URL)
+  res.json({
+    message: `Test Complete`,
+  });
+
 });
 
 app.listen(PORT, async () => {
