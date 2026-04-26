@@ -149,7 +149,7 @@ services:
       - RAVENDB_URL=http://ravendb-node1:8080
       - RAVENDB_DB=test
       - REDIS_URL=redis://redis:6379
-      - MAILPIT_URL=https://mailpit:8025
+      - MAILPIT_URL=http://mailpit:8025
       - neo4j_URL=neo4j+s://ec7fd635.databases.neo4j.io
       - neo4j_USER=ec7fd635
       - neo4j_PASSWORD=mbGQQkwyrjdjryadRE5Ah_GAeb81LNy-_G6zxpaFD04
