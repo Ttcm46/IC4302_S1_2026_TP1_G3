@@ -39,6 +39,7 @@ import {
   createAccessLog, 
   initializeMongo, 
   getDeviceInfo } from "./accessLogs.js";
+import { MailpitClientStarter, sendEmail } from "./mailpit.js";
 import { get } from "http";
 
 dotenv.config();
@@ -46,6 +47,7 @@ dotenv.config();
 let store = null;
 let RDclient = null;
 let neo4jDriver = null;
+let MPClient = null;
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -164,7 +166,7 @@ app.post("/users/reset", async (req, res) => {
 
   const result = await loadUser(req.body.username, store);
   RDclient.del(tmp.data.id); // Invalidate any existing sessions for the user
-
+  sendEmail(MPClient,null,null,"Contraseña Reestablecida",`Su contraseña ha sido reestablecida, su contraseña temporal es: ${tmppass}`)
   res.json({
     message: "Password reset successful, you temporal pass word is ",
     temporaryPassword: tmppass,
@@ -173,6 +175,7 @@ app.post("/users/reset", async (req, res) => {
 //DONE: update password                   TEST: untested
 app.put("/users/update/password", (req, res) => {
   updateUser(req.query.id, {password:req.body.newpassword}, store);
+  sendEmail(MPClient,null,null,"Contraseña Reestablecida",`Su contraseña ha sido reestablecida`)
   res.json({ message: "Password updated successfully" });
 });
 
@@ -360,7 +363,7 @@ app.get("/login", async (req, res) => {
           if (value != null) {
             const data = JSON.parse(value);
             data.attempts += 1;
-            if (data.attempts >= 5) {
+            if (data.attempts >= 5) { //lockout
               await RDclient.set(
                 token,
                 JSON.stringify({
@@ -378,6 +381,7 @@ app.get("/login", async (req, res) => {
                 device: userDevice,
                 successful: false
               })
+              sendEmail(MPClient,null,null,"Bloqueo de cuenta","su cuenta se ha bloqueado por 1 hora")
               return res.json({
                 success: false,
                 message: "Account locked due to too many failed login attempts",
@@ -393,6 +397,7 @@ app.get("/login", async (req, res) => {
               }),
               { EX: 60 * 60 },
             ); // Update failed attempts with expiration of 1 hour
+            sendEmail(MPClient,null,null,"Intento de inicio de sesion fallido","Ha habido un intento fallido de inicio de sesion a su cuenta")
             createAccessLog({
               ip: req.ip,
               userIdOrToken: msg.user.id,
@@ -404,7 +409,7 @@ app.get("/login", async (req, res) => {
               success: false,
               message: "Invalid username or password",
             });
-          } else {
+          } else {        //login exitoso
             await RDclient.set(
               token,
               JSON.stringify({
@@ -713,7 +718,7 @@ app.post("/messages/conversation", (req, res) => {
 });
 
 app.post("/test", async (req, res) => {
-  console.log(req.query.id)
+  sendEmail(MPClient,null,null,"TEST","esto es una prueba")
 });
 
 app.listen(PORT, async () => {
@@ -760,6 +765,13 @@ app.listen(PORT, async () => {
       console.log("✓ MongoDB connected successfully");
     } catch (error) {
       console.error("✗ Failed to initialize MongoDB:", error.message);
+    }
+
+    try{
+      MPClient = MailpitClientStarter(process.env.MAILPIT_URL||"http://localhost:8025")
+    }
+    catch(error){
+      console.error()
     }
 
     console.log("\n✓ All database connections initialized successfully!");
