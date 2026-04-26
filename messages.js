@@ -40,4 +40,23 @@ const MessageSchema = new Schema(
  */
 const Message = mongoose.models.Message || mongoose.model("Message", MessageSchema);
 
-export { MessageSchema, Message };
+async function createMessage({fromUserId, toUserId, content}) {
+    return Message.create({fromUserId, toUserId, content});
+}
+
+async function getInboxMessages(userId) {
+  return Message.find({ toUserId: userId }).sort({ createdAt: -1 }).lean();
+}
+
+async function getConversationMessages(userId, otherUserId) {
+  return Message.find({
+    $or: [
+      { fromUserId: userId, toUserId: otherUserId },
+      { fromUserId: otherUserId, toUserId: userId },
+    ],
+  })
+    .sort({ createdAt: 1 })
+    .lean();
+}
+
+export { MessageSchema, Message, createMessage, getInboxMessages, getConversationMessages };
