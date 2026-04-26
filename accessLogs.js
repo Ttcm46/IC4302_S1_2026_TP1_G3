@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import UAParser from 'ua-parser-js';
+import { UAParser } from 'ua-parser-js';
 
 const { Schema } = mongoose;
 
