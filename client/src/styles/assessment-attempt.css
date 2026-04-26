@@ -1,0 +1,56 @@
+.assessment-attempt-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.2rem;
+}
+
+.assessment-attempt-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  padding: 1rem;
+}
+
+.assessment-attempt-card h1 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.assessment-attempt-path {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.attempt-start-panel {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: #fcfdff;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.attempt-questions-panel {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  padding: 0.95rem;
+  background: #fff;
+}
+
+.attempt-warning {
+  margin-top: 0.9rem;
+  background: #fff4e8;
+  border: 1px solid #f4c89d;
+  color: #8f4c0d;
+  border-radius: 0.55rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.attempt-result-actions {
+  margin-top: 0.55rem;
+}

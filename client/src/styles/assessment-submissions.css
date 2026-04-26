@@ -1,0 +1,68 @@
+.manage-assessment-submissions-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.2rem;
+}
+
+.manage-assessment-submissions-hero {
+  margin-bottom: 1rem;
+}
+
+.manage-assessment-submissions-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.submissions-students-panel {
+  position: sticky;
+  top: 0.9rem;
+}
+
+.submissions-students-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.student-item-btn {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: #fcfdff;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.student-item-btn.active {
+  border-color: var(--primary);
+  background: #edf4ff;
+}
+
+.student-item-btn strong {
+  color: var(--text);
+}
+
+.submissions-result-panel {
+  min-height: 480px;
+}
+
+.teacher-assessment-result-card {
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .manage-assessment-submissions-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .submissions-students-panel {
+    position: static;
+  }
+}

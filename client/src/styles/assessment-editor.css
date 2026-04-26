@@ -1,0 +1,337 @@
+.manage-assessment-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.assessment-detail-hero {
+  background: linear-gradient(135deg, #eef6ff 0%, #dcecff 100%);
+  border: 1px solid #cfe1ff;
+  border-radius: 0.9rem;
+  padding: 1.2rem 1.4rem;
+  margin-bottom: 1.2rem;
+}
+
+.assessment-detail-hero h1 {
+  margin: 0.25rem 0 0;
+  color: var(--primary-dark);
+}
+
+.assessment-detail-eyebrow {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.assessment-detail-hero .finished-notice {
+  margin-top: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: #f8d7da;
+  color: #721c24;
+  border-radius: 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.assessment-detail-hero-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.assessment-actions-panel {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: #fff;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.assessment-actions-row {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.action-btn {
+  min-width: 180px;
+}
+
+/* ── meta card ───────────────────────────────────────── */
+.assessment-detail-meta-card {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.95rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.assessment-detail-meta-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.85rem;
+}
+
+.assessment-detail-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.assessment-detail-meta-item span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.assessment-detail-meta-item strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+/* ── read-only questions ─────────────────────────────── */
+.assessment-detail-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.assessment-ro-question {
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: #fff;
+  padding: 0.95rem 1rem;
+}
+
+.assessment-ro-question-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 0.65rem;
+}
+
+.assessment-ro-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.assessment-ro-text {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.assessment-ro-options {
+  margin: 0;
+  padding: 0 0 0 2.5rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.assessment-ro-option {
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: #fafafa;
+  font-size: 0.9rem;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.assessment-ro-option.correct {
+  background: #dff5e6;
+  border-color: #a3d9b1;
+  color: #0f5c2f;
+  font-weight: 600;
+}
+
+.correct-badge {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* ── edit form ───────────────────────────────────────── */
+.assessment-edit-form {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: #fff;
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.assessment-edit-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.assessment-edit-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.edit-questions-heading {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.assessment-edit-question-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.assessment-edit-question-card {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.85rem;
+  background: #f9fbff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.assessment-edit-question-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.assessment-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.assessment-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.assessment-option-row input[type="radio"] {
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.option-text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-icon-remove {
+  background: none;
+  border: none;
+  color: #b42318;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.btn-icon-remove:hover {
+  color: #7a1710;
+}
+
+.btn-xs {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+}
+
+.btn-sm {
+  font-size: 0.82rem;
+  padding: 0.28rem 0.7rem;
+}
+
+.add-option-btn {
+  align-self: flex-start;
+}
+
+.add-question-btn {
+  align-self: flex-start;
+}
+
+.assessment-edit-actions {
+  display: flex;
+  gap: 0.6rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.assessment-question-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.btn-danger {
+  background: #b42318;
+  color: #fff;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  padding: 0.75rem 1.1rem;
+  font-size: 0.95rem;
+}
+
+.btn-danger:hover {
+  background: #8f1c13;
+}
+
+.empty-manage-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.error-text {
+  color: #b42318;
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .assessment-detail-hero {
+    flex-direction: column;
+  }
+
+  .assessment-detail-meta-row {
+    grid-template-columns: 1fr;
+  }
+
+  .assessment-edit-dates {
+    grid-template-columns: 1fr;
+  }
+}

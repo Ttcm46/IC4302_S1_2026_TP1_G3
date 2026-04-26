@@ -1,0 +1,1038 @@
+{
+  "info": {
+    "_postman_id": "tecdigitalito-api",
+    "name": "Tecdigitalito - API Tests",
+    "description": "Colección completa de pruebas para el backend IC4302_S1_2026_TP1_G3",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GENERAL",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000"
+            },
+            "description": "Verifica que el servidor esté activo y devuelve los métodos disponibles"
+          },
+          "response": []
+        },
+        {
+          "name": "Startup - Inicializar BD",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/startup",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000"
+            },
+            "description": "Inicializa y configura las bases de datos"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "USUARIOS",
+      "item": [
+        {
+          "name": "1. Crear Usuario",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Juan Pérez\",\n  \"username\": \"juan.perez\",\n  \"password\": \"SecurePass123\",\n  \"dob\": \"2000-05-15\",\n  \"picPath\": \"/images/juan.jpg\",\n  \"typeofuser\": \"student\",\n  \"correo\": \"juan.perez@example.com\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users/create",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "create"]
+            },
+            "description": "Crea un nuevo usuario en el sistema"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Buscar Usuario por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"id\",\n  \"id\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users"]
+            },
+            "description": "Busca un usuario específico por su ID"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Buscar Usuario por Propiedades",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"field\": \"username\",\n  \"value\": \"juan.perez\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users"]
+            },
+            "description": "Busca usuarios por propiedades (username, correo, etc.)"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Obtener Todos los Usuarios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users"]
+            },
+            "description": "Obtiene la lista de todos los usuarios"
+          },
+          "response": []
+        },
+        {
+          "name": "5. Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"juan.perez\",\n  \"password\": \"SecurePass123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["login"]
+            },
+            "description": "Inicia sesión y obtiene un token"
+          },
+          "response": []
+        },
+        {
+          "name": "6. Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{authToken}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/logout",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["logout"]
+            },
+            "description": "Cierra la sesión del usuario"
+          },
+          "response": []
+        },
+        {
+          "name": "7. Actualizar Contraseña",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"SecurePass123\",\n  \"newpassword\": \"NewSecurePass456\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users/update/password?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "update", "password"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Actualiza la contraseña de un usuario"
+          },
+          "response": []
+        },
+        {
+          "name": "8. Resetear Contraseña",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"juan.perez\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users/reset",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "reset"]
+            },
+            "description": "Genera una contraseña temporal aleatoria"
+          },
+          "response": []
+        },
+        {
+          "name": "9. Asignar Rol",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"student\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users/role?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "role"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Asigna un rol al usuario (student, professor, admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "10. Obtener Rol",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/users/role?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "role"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene el rol actual del usuario"
+          },
+          "response": []
+        },
+        {
+          "name": "11. Obtener Historial de Accesos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/users/log?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "log"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene el historial de login/logout del usuario"
+          },
+          "response": []
+        },
+        {
+          "name": "12. Obtener Detalles del Usuario",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/users/details?userId={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "details"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene detalles del usuario incluyendo sus cursos"
+          },
+          "response": []
+        },
+        {
+          "name": "13. Obtener Cursos del Usuario",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/users/courses?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "courses"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene los cursos en los que el usuario está inscrito"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AMIGOS",
+      "item": [
+        {
+          "name": "1. Enviar Solicitud de Amistad",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"friendId\": \"{{friendUserId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users/friends/request?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "friends", "request"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Envía una solicitud de amistad a otro usuario"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Obtener Solicitudes Pendientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/users/friends/requests?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "friends", "requests"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene las solicitudes de amistad pendientes"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Aceptar Solicitud de Amistad",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"friendId\": \"{{friendUserId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users/friends/accept?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "friends", "accept"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Acepta una solicitud de amistad"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Rechazar Solicitud de Amistad",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"friendId\": \"{{friendUserId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/users/friends/reject?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "friends", "reject"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Rechaza una solicitud de amistad"
+          },
+          "response": []
+        },
+        {
+          "name": "5. Obtener Lista de Amigos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/users/friends?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["users", "friends"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene la lista de amigos del usuario"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "CURSOS",
+      "item": [
+        {
+          "name": "1. Crear Curso",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"class\": {\n    \"classCode\": \"IC4302-2026-S1\",\n    \"name\": \"Bases de Datos 2\",\n    \"description\": \"Curso avanzado de grafos y bases de datos distribuidas\",\n    \"startDate\": \"2026-01-15\",\n    \"endDate\": \"2026-05-15\",\n    \"fotoPath\": \"/images/ic4302.jpg\"\n  },\n  \"creatorId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/create",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "create"]
+            },
+            "description": "Crea un nuevo curso"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Listar Todos los Cursos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/courses",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses"]
+            },
+            "description": "Obtiene la lista de todos los cursos"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Obtener Detalles del Curso",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/courses?classCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses"],
+              "query": [
+                {
+                  "key": "classCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Obtiene los detalles completos de un curso específico"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Obtener Cursos Creados por el Usuario",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/courses/mine?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "mine"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene los cursos creados por el usuario actual"
+          },
+          "response": []
+        },
+        {
+          "name": "5. Obtener Cursos Inscritos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/courses/enrolled?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "enrolled"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene los cursos en los que el usuario está inscrito"
+          },
+          "response": []
+        },
+        {
+          "name": "6. Agregar Sección al Curso",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectionId\": \"sec_001\",\n  \"description\": \"Introducción a bases de datos\",\n  \"isClassParent\": true\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/section?classCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "section"],
+              "query": [
+                {
+                  "key": "classCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Agrega una nueva sección a un curso"
+          },
+          "response": []
+        },
+        {
+          "name": "7. Actualizar Sección",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectionId\": \"sec_001\",\n  \"description\": \"Descripción actualizada de la sección\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/section?classCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "section"],
+              "query": [
+                {
+                  "key": "classCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Actualiza una sección del curso"
+          },
+          "response": []
+        },
+        {
+          "name": "8. Crear Evaluación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"evalId\": \"exam_001\",\n  \"name\": \"Examen Parcial 1\",\n  \"type\": \"exam\",\n  \"content\": {\n    \"duration\": 120,\n    \"totalPoints\": 200,\n    \"format\": \"Written\",\n    \"date\": \"2026-03-10\"\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/evaluation?classCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "evaluation"],
+              "query": [
+                {
+                  "key": "classCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Crea una nueva evaluación para un curso"
+          },
+          "response": []
+        },
+        {
+          "name": "9. Obtener Evaluaciones del Curso",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/courses/evaluations?classCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "evaluations"],
+              "query": [
+                {
+                  "key": "classCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Obtiene todas las evaluaciones de un curso"
+          },
+          "response": []
+        },
+        {
+          "name": "10. Inscribir Estudiante",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": \"{{studentUserId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/students?classCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "students"],
+              "query": [
+                {
+                  "key": "classCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Inscribe un estudiante a un curso"
+          },
+          "response": []
+        },
+        {
+          "name": "11. Obtener Estudiantes del Curso",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/courses/students?classCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "students"],
+              "query": [
+                {
+                  "key": "classCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Obtiene la lista de estudiantes inscritos en un curso"
+          },
+          "response": []
+        },
+        {
+          "name": "12. Clonar Curso",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newClassCode\": \"IC4302-2026-S1-copy\",\n  \"creatorId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/clone?sourceClassCode={{classCode}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "clone"],
+              "query": [
+                {
+                  "key": "sourceClassCode",
+                  "value": "{{classCode}}"
+                }
+              ]
+            },
+            "description": "Clona un curso existente con nuevo código"
+          },
+          "response": []
+        },
+        {
+          "name": "13. Actualizar Estado del Curso",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/status?id={{classId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "status"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{classId}}"
+                }
+              ]
+            },
+            "description": "Actualiza el estado del curso (active/inactive)"
+          },
+          "response": []
+        },
+        {
+          "name": "14. Enviar Evaluación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"evaluationId\": \"exam_001\",\n  \"answers\": {\n    \"q1\": \"answer1\",\n    \"q2\": \"answer2\"\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/courses/submit?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "submit"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Envía una evaluación resuelta"
+          },
+          "response": []
+        },
+        {
+          "name": "15. Obtener Calificaciones",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/courses/grades?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["courses", "grades"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene las calificaciones del usuario"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "MENSAJES",
+      "item": [
+        {
+          "name": "1. Enviar Mensaje",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipientId\": \"{{recipientId}}\",\n  \"content\": \"Hola, ¿cómo estás?\",\n  \"type\": \"direct\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/messages/send?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["messages", "send"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Envía un mensaje a otro usuario"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Obtener Bandeja de Entrada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/messages/inbox?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["messages", "inbox"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Obtiene todos los mensajes de la bandeja de entrada"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Iniciar Conversación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participantIds\": [\"{{userId}}\", \"{{recipientId}}\"],\n  \"name\": \"Grupo de Estudio IC4302\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/messages/conversation?id={{userId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["messages", "conversation"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Inicia una nueva conversación grupal"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "userId",
+      "value": "",
+      "description": "ID del usuario autenticado"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "description": "Token de autenticación JWT"
+    },
+    {
+      "key": "classCode",
+      "value": "IC4302-2026-S1",
+      "description": "Código del curso"
+    },
+    {
+      "key": "friendUserId",
+      "value": "",
+      "description": "ID del usuario amigo"
+    },
+    {
+      "key": "studentUserId",
+      "value": "",
+      "description": "ID del estudiante a inscribir"
+    },
+    {
+      "key": "recipientId",
+      "value": "",
+      "description": "ID del destinatario del mensaje"
+    },
+    {
+      "key": "classId",
+      "value": "",
+      "description": "ID del curso"
+    }
+  ]
+}
