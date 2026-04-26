@@ -206,7 +206,7 @@ app.get("/users/log", async (req, res) => {
     });
   }
 
-  res.json({ message: `Login history for user ID: ${req.params.id}` });
+  res.json({ message: `Login history for user ID: ${req.query.id}` });
 });
 //TEST:
 app.post("/users/role", (req, res) => {
