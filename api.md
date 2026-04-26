@@ -254,7 +254,7 @@ Request body:
 ```
 
 ### 2. Add a section to a course
-**POST** `http://localhost:3000/courses/section?id={id}`
+**POST** `http://localhost:3000/courses/section?classCode={classCode}`
 
 Request body:
 ```json
@@ -266,7 +266,7 @@ Request body:
 ```
 
 ### 3. Update a section
-**PUT** `http://localhost:3000/courses/section/{classCode}`
+**PUT** `http://localhost:3000/courses/section?classCode={classCode}`
 
 Request body:
 ```json
@@ -277,7 +277,7 @@ Request body:
 puede actualizarse con el body que se requiera, con cuanta informacion se necesite
 
 ### 4. Create an evaluation for a course
-**POST** `http://localhost:3000/courses/evaluation/{classCode}`
+**POST** `http://localhost:3000/courses/evaluation?classCode={classCode}`
 
 Request body:
 ```json
@@ -305,7 +305,7 @@ Request body:
 ```
 
 ### 6. Add/Enroll a student in a course
-**POST** `http://localhost:3000/courses/students/{classCode}`
+**POST** `http://localhost:3000/courses/students?classCode={classCode}`
 
 Request body:
 ```json
@@ -315,7 +315,7 @@ Request body:
 ```
 
 Alternative (same endpoint for enrollment):
-**POST** `http://localhost:3000/courses/enroll/{classCode}`
+**POST** `http://localhost:3000/courses/enroll?classCode={classCode}`
 
 Request body:
 ```json
@@ -325,13 +325,13 @@ Request body:
 ```
 
 ### 7. Get enrolled students for a course
-**GET** `http://localhost:3000/courses/students/{classCode}`
+**GET** `http://localhost:3000/courses/students?classCode={classCode}`
 
 ### 8. Get courses created by a user
 **GET** `http://localhost:3000/courses/mine?id={userId}`
 
 ### 9. Clone a class
-**POST** `http://localhost:3000/courses/clone/{sourceClassCode}`
+**POST** `http://localhost:3000/courses/clone?sourceClassCode={sourceClassCode}`
 
 Request body:
 ```json
@@ -342,7 +342,7 @@ Request body:
 ```
 
 ### 10. Get full class details
-**GET** `http://localhost:3000/courses/{classCode}`
+**GET** `http://localhost:3000/courses?classCode={classCode}`
 
 Returns class information, evaluations, students, and sections.
 
@@ -353,7 +353,7 @@ Returns class information, evaluations, students, and sections.
 **GET** `http://localhost:3000/courses/enrolled?id={studentId}`
 
 ### 13. Get evaluations for a course
-**GET** `http://localhost:3000/courses/evaluations/{classCode}`
+**GET** `http://localhost:3000/courses/evaluations?classCode={classCode}`
 
 ### 14. Submit evaluation
 **POST** `http://localhost:3000/courses/submit?id={id}`

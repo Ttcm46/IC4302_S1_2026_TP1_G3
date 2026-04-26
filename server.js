@@ -98,19 +98,19 @@ app.get("/", (req, res) => {
       login: ["GET /login", "GET /logout"],
       courses: [
         "POST /courses/create",
-        "POST /courses/section?id=ID",
-        "PUT /courses/section/:classCode",
-        "POST /courses/evaluation/:classCode",
+        "POST /courses/section?classCode=CODE",
+        "PUT /courses/section?classCode=CODE",
+        "POST /courses/evaluation?classCode=CODE",
         "PUT /courses/status?id=ID",
-        "POST /courses/students/:classCode",
-        "GET /courses/students/:classCode",
+        "POST /courses/students?classCode=CODE",
+        "GET /courses/students?classCode=CODE",
         "GET /courses/mine",
-        "POST /courses/clone/:sourceClassCode",
-        "GET /courses/:classCode",
+        "POST /courses/clone?sourceClassCode=CODE",
+        "GET /courses?classCode=CODE",
         "GET /courses",
-        "POST /courses/enroll/:classCode",
+        "POST /courses/enroll?classCode=CODE",
         "GET /courses/enrolled",
-        "GET /courses/evaluations/:classCode",
+        "GET /courses/evaluations?classCode=CODE",
         "POST /courses/submit?id=ID",
         "GET /courses/grades?id=ID",
       ],
@@ -280,8 +280,8 @@ app.get("/users/courses", async (req, res) => {
 });
 
 //TEST:
-app.get("/users/courses/:id", async (req, res) => {
-  const id = req.params.id;
+app.get("/users/courses", async (req, res) => {
+  const id = req.query.id;
   const tmp = await getEnrolledClasses(neo4jDriver, id);
   res.json({
     message: `Courses for user ID: ${id}`,
@@ -564,8 +564,8 @@ app.post("/courses/section", async (req, res) => {
   res.json({message: "Couldnt add section",error:result})
 });
 //DONE:
-app.put("/courses/section/:classCode", async (req, res) => {
-  const sectionId = req.params.classCode;
+app.put("/courses/section", async (req, res) => {
+  const sectionId = req.query.classCode;
   const { description } = req.body;
 
   if (!description) {
@@ -576,8 +576,8 @@ app.put("/courses/section/:classCode", async (req, res) => {
   res.json({ message: "Section updated successfully", sectionId });
 });
 //DONE:
-app.post("/courses/evaluation/:classCode", async (req, res) => {
-  const classCode = req.params.classCode;
+app.post("/courses/evaluation", async (req, res) => {
+  const classCode = req.query.classCode;
   const { evalId, name, type, content } = req.body;
 
   if (!evalId || !name || !type || content == null) {
@@ -596,8 +596,8 @@ app.put("/courses/status", (req, res) => {
   });
 });
 //DONE:
-app.post("/courses/students/:classCode", async (req, res) => {
-  const classCode = req.params.classCode;
+app.post("/courses/students", async (req, res) => {
+  const classCode = req.query.classCode;
   const { studentId } = req.body;
 
   if (!studentId) {
@@ -608,8 +608,8 @@ app.post("/courses/students/:classCode", async (req, res) => {
   res.json({ message: "Student added successfully", classCode, studentId });
 });
 //DONE:
-app.get("/courses/students/:classCode", async (req, res) => {
-  const classCode = req.params.classCode;
+app.get("/courses/students", async (req, res) => {
+  const classCode = req.query.classCode;
   const students = await getStudents(neo4jDriver, classCode);
   res.json({ message: `Students enrolled in course ${classCode}`, students });
 });
@@ -629,8 +629,8 @@ app.get("/courses/mine", async (req, res) => {
   });
 });
 //DONE:
-app.post("/courses/clone/:sourceClassCode", async (req, res) => {
-  const sourceClassCode = req.params.sourceClassCode;
+app.post("/courses/clone", async (req, res) => {
+  const sourceClassCode = req.query.sourceClassCode;
   const newClassCode = req.body.newClassCode || `${sourceClassCode}-clone`;
   const creatorId = req.body.creatorId || req.body.id || null;
 
@@ -642,22 +642,21 @@ app.post("/courses/clone/:sourceClassCode", async (req, res) => {
   res.json({ message: "Course cloned successfully", course: cloned });
 });
 //DONE:
-app.get("/courses/:classCode", async (req, res) => {
-  const classCode = req.params.classCode;
-  const details = await getClassDetails(neo4jDriver, classCode);
-  if (!details) {
-    return res.status(404).json({ message: `Class not found: ${classCode}` });
-  }
-  res.json({ message: `Class details for ${classCode}`, details });
-});
-//DONE:
 app.get("/courses", async (req, res) => {
+  const classCode = req.query.classCode;
+  if (classCode) {
+    const details = await getClassDetails(neo4jDriver, classCode);
+    if (!details) {
+      return res.status(404).json({ message: `Class not found: ${classCode}` });
+    }
+    return res.json({ message: `Class details for ${classCode}`, details });
+  }
   const classes = await getAllClasses(neo4jDriver);
   res.json({ message: "All available courses", classes });
 });
 //DONE:
-app.post("/courses/enroll/:classCode", async (req, res) => {
-  const classCode = req.params.classCode;
+app.post("/courses/enroll", async (req, res) => {
+  const classCode = req.query.classCode;
   const { studentId } = req.body;
 
   if (!studentId) {
@@ -678,8 +677,8 @@ app.get("/courses/enrolled", async (req, res) => {
   res.json({ message: `Courses enrolled by student ${studentId}`, courses });
 });
 //DONE:
-app.get("/courses/evaluations/:classCode", async (req, res) => {
-  const classCode = req.params.classCode;
+app.get("/courses/evaluations", async (req, res) => {
+  const classCode = req.query.classCode;
   const evaluations = await getEvaluations(neo4jDriver, classCode);
   res.json({ message: `Evaluations for course ${classCode}`, evaluations });
 });
