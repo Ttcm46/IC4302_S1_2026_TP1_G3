@@ -287,21 +287,30 @@ app.get("/users/friends/", async (req, res) => {
 app.get("/users/friends/requests/", (req, res) => {
   // Logic to get pending friend requests for a user
   res.json({
-    message: `Pending friend requests for user ID: ${req.params.id}`,
+    message: `Pending friend requests for user ID: ${req.query.id || req.body.id}`,
+    requests: []
   });
 });
 //TODO:
 app.post("/users/friends/accept/", (req, res) => {
   // Logic to accept a friend request
+  const from = req.body.from || req.query.from;
+  const to = req.body.to || req.query.to;
   res.json({
-    message: `Friend request accepted for user ID: ${req.params.id}`,
+    message: `Friend request accepted`,
+    from, to,
+    success: true
   });
 });
 //TODO:
 app.post("/users/friends/reject/", (req, res) => {
   // Logic to reject a friend request
+  const from = req.body.from || req.query.from;
+  const to = req.body.to || req.query.to;
   res.json({
-    message: `Friend request rejected for user ID: ${req.params.id}`,
+    message: `Friend request rejected`,
+    from, to,
+    success: true
   });
 });
 //TEST:

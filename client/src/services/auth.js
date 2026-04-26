@@ -263,13 +263,60 @@ export const userService = {
     return { data: { user: mapBackendUser(response.data?.user) } };
   },
 
-  searchUsers: (query = '') => api.get('/users', { params: query ? { field: 'username', value: query } : {} }),
-  sendFriendRequest: (friendId) => {
-    const userId = getCurrentUser().id;
-    return api.post('/users/friends/request/', { userId, friendId });
+  async searchUsers(query = '') {
+    const response = await api.get('/users', { params: query ? { field: 'username', value: query } : {} });
+    const backendData = response.data?.data || response.data;
+    const users = backendData?.data || backendData || [];
+    const userArray = Array.isArray(users) ? users : [];
+    return { data: { data: userArray } };
   },
-  getFriends: (userId) => api.get('/users/friends/', { params: { id: userId } }),
-  getAccessLogs: (userId) => api.get('/users/log/', { params: { id: userId } })
+
+  async sendFriendRequest(targetUserId) {
+    const userId = getCurrentUser().id || getCurrentUser().username;
+    return api.post('/users/friends/request/', { id: targetUserId });
+  },
+
+  async acceptFriendRequest(fromUserId, toUserId) {
+    return api.post('/users/friends/accept/', { from: fromUserId, to: toUserId });
+  },
+
+  async rejectFriendRequest(fromUserId, toUserId) {
+    return api.post('/users/friends/reject/', { from: fromUserId, to: toUserId });
+  },
+
+  async getFriendRequestStatus(userId, targetUserId) {
+    try {
+      const friends = await this.getFriends(userId);
+      const isFriend = friends.data?.friends?.some(f => String(f.id || f) === String(targetUserId));
+      if (isFriend) return 'friends';
+      return 'none';
+    } catch {
+      return 'none';
+    }
+  },
+
+  async getUserCourseActivity(userId) {
+    try {
+      const createdResponse = await api.get('/courses/mine', { params: { creatorId: userId } });
+      const enrolledResponse = await api.get('/courses/enrolled', { params: { id: userId } });
+      return {
+        data: {
+          teachingCourses: createdResponse.data?.classes || [],
+          enrolledCourses: enrolledResponse.data?.courses || []
+        }
+      };
+    } catch {
+      return { data: { teachingCourses: [], enrolledCourses: [] } };
+    }
+  },
+
+  async getFriends(userId) {
+    return api.get('/users/friends/', { params: { id: userId } });
+  },
+
+  async getAccessLogs(userId) {
+    return api.get('/users/log/', { params: { id: userId } });
+  }
 };
 
 export const courseService = {

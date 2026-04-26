@@ -98,6 +98,12 @@ export default function CreateCourse() {
     try {
       const response = await courseService.createCourse(form);
       const newCourse = response.data?.course;
+      
+      if (!newCourse) {
+        setError('Error: El servidor no devolvió datos del curso creado.');
+        setLoading(false);
+        return;
+      }
       navigate(`/courses/${newCourse?.id || form.code}/manage`);
     } catch (err) {
       setError(err.response?.data?.message || "No fue posible crear el curso.");
