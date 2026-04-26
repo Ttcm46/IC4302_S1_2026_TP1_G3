@@ -256,12 +256,20 @@ Request body:
 ### 2. Add a section to a course
 **POST** `http://localhost:3000/courses/section?classCode={classCode}`
 
-Request body:
+Request body: para seccion primaria http://localhost:3000/courses/section?classCode={classCode}`
 ```json
 {
   "sectionId": "sec_001",
   "description": "Introducción a bases de datos",
   "isClassParent": true
+}
+```
+Request body subseccion:  http://localhost:3000/courses/section?classCode={seccion parent}`
+```json
+{
+  "sectionId": "sec_001",
+  "description": "Introducción a bases de datos",
+  "isClassParent": false
 }
 ```
 

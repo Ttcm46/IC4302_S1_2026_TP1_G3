@@ -49,7 +49,11 @@ export async function createClass(driver, data, creatorId) {
 
     const record = result.records[0];
     return record.get("c").properties;
-  } finally {
+  }
+  catch(error){
+    console.log(error)
+  }
+   finally {
     await session.close();
   }
 };

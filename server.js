@@ -523,12 +523,12 @@ app.post("/courses/create", async (req, res) => {
     return res.status(400).json({ message: "Missing class data or classCode" });
   }
 
-  const created = await createClass(neo4jDriver, classData, req.body.creatorId);
+  const created = await createClass(neo4jDriver, classData, req.body.id);
   res.json({ message: "Course created successfully", course: created });
 });
 //DONE:
 app.post("/courses/section/", async (req, res) => {
-  const parentId = req.params.classCode || req.body.classCode;
+  const parentId = req.query.classCode || req.body.classCode;
   const { sectionId, description, isClassParent = true } = req.body;
 
   if (!sectionId || !description) {
@@ -1197,8 +1197,8 @@ app.listen(PORT, async () => {
 
   neo4jDriver = connectToNeo4j(
     neo4jUrl,
-    // process.env.NEO4J_USER || "neo4j",
-    // process.env.NEO4J_PASSWORD || "password"
+    process.env.NEO4J_USER || "neo4j",
+    process.env.NEO4J_PASSWORD || "password"
   );
   console.log("Neo4j driver initialized");
 
