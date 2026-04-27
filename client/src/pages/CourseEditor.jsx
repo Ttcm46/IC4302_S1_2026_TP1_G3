@@ -85,7 +85,7 @@ export default function ManageCourse() {
   const [resourceForm, setResourceForm] = useState(initialResourceForm);
   
   // 3. Formulario de EDICIÓN DE INFORMACIÓN GENERAL del curso
-  const [courseForm, setCourseForm] = useState({ code: '', name: '', startDate: '', endDate: '' });
+  const [courseForm, setCourseForm] = useState({ name: '', startDate: '', endDate: '' });
   
   // Mensajes de error por formulario
 
@@ -378,13 +378,8 @@ export default function ManageCourse() {
     event.preventDefault();
     setCourseError('');
 
-    if (!courseForm.code.trim() || !courseForm.name.trim() || !courseForm.startDate) {
-      setCourseError('Código, nombre y fecha de inicio son obligatorios.');
-      return;
-    }
-
-    if (courseForm.code.trim() !== String(course.code || '').trim()) {
-      setCourseError('Cambiar el codigo de curso aun no esta soportado por backend.');
+    if (!courseForm.name.trim() || !courseForm.startDate) {
+      setCourseError('Nombre y fecha de inicio son obligatorios.');
       return;
     }
 
@@ -398,7 +393,7 @@ export default function ManageCourse() {
         name: courseForm.name,
         description: course.description,
         startDate: courseForm.startDate,
-        endDate: courseForm.endDate,
+        endDate: courseForm.endDate || null,
         coverImage: course.coverImage
       });
       setIsEditingCourse(false);
@@ -421,12 +416,60 @@ export default function ManageCourse() {
   };
 
   /**
+   * compressImageToBase64(file, maxWidth, maxHeight, quality)
+   * 
+   * Qué hace: Comprime una imagen redimensionándola y ajustando calidad.
+   * Conexión CourseEditor: Reduce el tamaño de base64 de imágenes antes de enviar al backend.
+   * Sin esto, imágenes grandes podrían exceder el límite de payload.
+   * Cómo: Usa Canvas para redimensionar, luego convierte a base64 con calidad ajustada.
+   */
+  const compressImageToBase64 = (file, maxWidth = 800, maxHeight = 600, quality = 0.85) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calcular nuevas dimensiones manteniendo aspecto
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convertir a base64 con calidad ajustada
+          const base64 = canvas.toDataURL('image/jpeg', quality);
+          resolve(base64);
+        };
+        img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+        img.src = e.target?.result;
+      };
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  /**
    * handleCoverImageChange(event)
    * 
    * Qué hace: Procesa la nueva imagen de portada seleccionada por el usuario.
-   * Cómo: Lee el archivo con FileReader, lo convierte a base64, llama updateCourseMetadata, 
+   * Cómo: Comprime la imagen usando Canvas, la convierte a base64, llama updateCourseMetadata, 
    *       e incrementa refreshKey para mostrar la nueva imagen inmediatamente.
-   * Por qué: Mejora de calidad de vida del usuario.
+   * Por qué: Mejora de calidad de vida del usuario y reduce tamaño de payload.
    */
   const handleCoverImageChange = (event) => {
     const file = event.target.files?.[0];
@@ -434,23 +477,25 @@ export default function ManageCourse() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const imageData = String(reader.result || '');
-      try {
-        await courseService.updateCourse(course.id, {
-          name: course.name,
-          description: course.description,
-          startDate: course.startDate,
-          endDate: course.endDate,
-          coverImage: imageData
-        });
-        setRefreshKey((value) => value + 1);
-      } catch {
-        setCourseError('No fue posible actualizar la portada del curso.');
-      }
-    };
-    reader.readAsDataURL(file);
+    compressImageToBase64(file)
+      .then(async (imageData) => {
+        try {
+          await courseService.updateCourse(course.id, {
+            name: course.name,
+            description: course.description,
+            startDate: course.startDate,
+            endDate: course.endDate,
+            coverImage: imageData
+          });
+          setRefreshKey((value) => value + 1);
+        } catch {
+          setCourseError('No fue posible actualizar la portada del curso.');
+        }
+      })
+      .catch((error) => {
+        console.error('Error comprimiendo imagen:', error);
+        setCourseError('No se pudo procesar la imagen. Intenta con otro archivo.');
+      });
   };
 
   /**
@@ -715,22 +760,26 @@ export default function ManageCourse() {
       }
     }
 
-    await assessmentService.createAssessment(course.id, {
-      title: assessmentMeta.title,
-      startDate: assessmentMeta.startDate,
-      startTime: assessmentMeta.startTime,
-      endDate: assessmentMeta.endDate,
-      endTime: assessmentMeta.endTime,
-      questions: assessmentQuestions.map((q) => ({
-        text: q.text,
-        options: q.options.map((o) => ({ text: o.text })),
-        correctOptionIndex: q.correctOptionIndex
-      }))
-    });
+    try {
+      await assessmentService.createAssessment(course.id, {
+        title: assessmentMeta.title,
+        startDate: assessmentMeta.startDate,
+        startTime: assessmentMeta.startTime,
+        endDate: assessmentMeta.endDate,
+        endTime: assessmentMeta.endTime,
+        questions: assessmentQuestions.map((q) => ({
+          text: q.text,
+          options: q.options.map((o) => ({ text: o.text })),
+          correctOptionIndex: q.correctOptionIndex
+        }))
+      });
 
-    setAssessmentMeta({ title: '', startDate: '', startTime: '', endDate: '', endTime: '' });
-    setAssessmentQuestions([]);
-    setRefreshKey((value) => value + 1);
+      setAssessmentMeta({ title: '', startDate: '', startTime: '', endDate: '', endTime: '' });
+      setAssessmentQuestions([]);
+      setRefreshKey((value) => value + 1);
+    } catch (err) {
+      setAssessmentError(err.response?.data?.message || 'No fue posible guardar la evaluación.');
+    }
   };
 
   const handleDeleteAssessment = async (assessmentId) => {
@@ -738,8 +787,12 @@ export default function ManageCourse() {
       return;
     }
 
-    await assessmentService.deleteAssessment(course.id, assessmentId);
-    setRefreshKey((value) => value + 1);
+    try {
+      await assessmentService.deleteAssessment(course.id, assessmentId);
+      setRefreshKey((value) => value + 1);
+    } catch (err) {
+      setAssessmentError(err.response?.data?.message || 'No fue posible eliminar la evaluación.');
+    }
   };
 
   const renderSectionNode = (section, depth = 0) => {
@@ -826,16 +879,6 @@ export default function ManageCourse() {
           {isEditingCourse ? (
             <form className="section-form info-edit-form" onSubmit={handleSaveCourse}>
               <div className="form-group">
-                <label htmlFor="courseCode">Código del curso</label>
-                <input
-                  id="courseCode"
-                  type="text"
-                  value={courseForm.code}
-                  onChange={(event) => setCourseForm((previous) => ({ ...previous, code: event.target.value }))}
-                />
-              </div>
-
-              <div className="form-group">
                 <label htmlFor="courseName">Nombre del curso</label>
                 <input
                   id="courseName"
@@ -856,7 +899,7 @@ export default function ManageCourse() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="courseEndDate">Fecha de fin</label>
+                <label htmlFor="courseEndDate">Fecha de fin (opcional - dejar vacío para siempre disponible)</label>
                 <input
                   id="courseEndDate"
                   type="date"
@@ -891,7 +934,7 @@ export default function ManageCourse() {
                 </div>
                 <div className="manage-meta-item">
                   <span>Fin</span>
-                  <strong>{formatDate(course.endDate)}</strong>
+                  <strong>{course.endDate && course.endDate !== '00/00/0000' ? formatDate(course.endDate) : 'Siempre disponible'}</strong>
                 </div>
               </div>
 

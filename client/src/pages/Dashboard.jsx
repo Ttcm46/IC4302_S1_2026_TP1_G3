@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { enrollmentService, userService } from '../services/auth';
+import { enrollmentService, messageService, userService } from '../services/auth';
 import { getSessionUser } from '../services/session';
 import '../styles/dashboard.css';
 
@@ -228,35 +228,42 @@ export default function Dashboard() {
   const [createdCourses, setCreatedCourses] = useState([]);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [friends, setFriends] = useState([]);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   
-  // Cuenta mensajes directos sin leer del usuario
-  const unreadMessages = 0;
-
   useEffect(() => {
     const loadDashboard = async () => {
-      try {
-        const [createdResponse, enrolledResponse, friendsResponse] = await Promise.all([
-          enrollmentService.getTeachingCourses(),
-          enrollmentService.getMyCourses(),
-          currentUserId !== 'anonymous-user' ? userService.getFriends(currentUserId) : Promise.resolve(null)
-        ]);
+      const [createdResult, enrolledResult, friendsResult, inboxResult] = await Promise.allSettled([
+        enrollmentService.getTeachingCourses(),
+        enrollmentService.getMyCourses(),
+        currentUserId !== 'anonymous-user' ? userService.getFriends(currentUserId) : Promise.resolve(null),
+        currentUserId !== 'anonymous-user' ? messageService.getInbox() : Promise.resolve(null)
+      ]);
 
-        setCreatedCourses(Array.isArray(createdResponse.data?.courses) ? createdResponse.data.courses : []);
-        setEnrolledCourses(Array.isArray(enrolledResponse.data?.courses) ? enrolledResponse.data.courses : []);
+      const createdResponse = createdResult.status === 'fulfilled' ? createdResult.value : null;
+      const enrolledResponse = enrolledResult.status === 'fulfilled' ? enrolledResult.value : null;
+      const friendsResponse = friendsResult.status === 'fulfilled' ? friendsResult.value : null;
+      const inboxResponse = inboxResult.status === 'fulfilled' ? inboxResult.value : null;
 
-        const rawFriends = friendsResponse?.data?.friends;
-        if (Array.isArray(rawFriends)) {
-          setFriends(rawFriends.map((f) => ({
-            id: String(f.id || f.userId || f),
-            username: String(f.username || f.id || f.userId || f),
-            fullName: String(f.name || f.fullName || f.username || f.id || f.userId || f),
-            avatar: f.picPath || f.avatar || ''
-          })));
-        }
-      } catch {
-        setCreatedCourses([]);
-        setEnrolledCourses([]);
+      setCreatedCourses(Array.isArray(createdResponse?.data?.courses) ? createdResponse.data.courses : []);
+      setEnrolledCourses(Array.isArray(enrolledResponse?.data?.courses) ? enrolledResponse.data.courses : []);
+
+      const rawFriends = friendsResponse?.data?.friends;
+      if (Array.isArray(rawFriends)) {
+        setFriends(rawFriends.map((f) => ({
+          id: String(f.id || f.userId || f),
+          username: String(f.username || f.id || f.userId || f),
+          fullName: String(f.name || f.fullName || f.username || f.id || f.userId || f),
+          avatar: f.picPath || f.avatar || ''
+        })));
+      } else {
+        setFriends([]);
       }
+
+      const inboxMessages =
+        (Array.isArray(inboxResponse?.data?.data) && inboxResponse.data.data)
+        || (Array.isArray(inboxResponse?.data?.messages) && inboxResponse.data.messages)
+        || [];
+      setUnreadMessages(inboxMessages.filter((message) => message?.read !== true).length);
     };
 
     loadDashboard();

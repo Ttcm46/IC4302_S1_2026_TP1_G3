@@ -21,10 +21,17 @@ import { RedisinitializeStore } from "./redisStore.js";
 import {
   connectToNeo4j,
   createClass,
+  classCodeExists,
   addEvaluation,
+  updateEvaluation,
+  deleteEvaluation,
   addStudent,
   addSection,
   updateSection,
+  deleteSection,
+  deleteClass,
+  updateClass,
+  updateClassVisibility,
   cloneClass,
   getClassDetails,
   getEvaluations,
@@ -54,7 +61,10 @@ let MPClient = null;
 
 const PORT = process.env.PORT || 3000;
 const app = express();
-app.use(express.json());
+// Aumentar límite de tamaño de payload para soportar imágenes en base64
+// Las imágenes de portada pueden ser bastante grandes (~500KB en base64)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
 // Global error handler middleware
@@ -545,10 +555,25 @@ app.post("/courses/create", async (req, res) => {
     }
 
     const created = await createClass(neo4jDriver, classData, req.body.id);
-    if (!created) {
-      return res.status(400).json({ success: false, message: "Course creation failed" });
+    if (!created || !created.classCode) {
+      return res.status(400).json({ success: false, message: "Course creation failed - invalid response" });
     }
-    res.json({ message: "Course created successfully", course: created });
+
+    // Conexión CreateCourse: Obtener los detalles completos del curso recién creado
+    // con evaluaciones, secciones y estudiantes para que CourseEditor lo reciba completo.
+    // Sin esto, CourseEditor intenta cargar con GET /courses?classCode=X y podría fallar si Neo4j tarda.
+    // Agregamos un pequeño delay para permitir que la transacción se replique.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    const fullDetails = await getClassDetails(neo4jDriver, created.classCode);
+    const courseData = fullDetails || { 
+      class: created, 
+      evaluations: [], 
+      students: [], 
+      sections: [] 
+    };
+
+    res.json({ message: "Course created successfully", course: courseData });
   } catch (error) {
     console.error("Error creating course:", error.message);
     res.status(500).json({
@@ -585,6 +610,35 @@ app.put("/courses/section", async (req, res) => {
   await updateSection(neo4jDriver, sectionId, description);
   res.json({ message: "Section updated successfully", sectionId });
 });
+
+// Conexión SectionEditor: Endpoint para eliminar secciones.
+// DELETE /courses/section?sectionId=ID elimina una sección completamente.
+// Usa deleteSection() que ejecuta DETACH DELETE en Neo4j para remover el nodo y sus relaciones.
+app.delete("/courses/section", async (req, res) => {
+  const sectionId = req.query.sectionId;
+
+  if (!sectionId) {
+    return res.status(400).json({ message: "Missing sectionId" });
+  }
+
+  await deleteSection(neo4jDriver, sectionId);
+  res.json({ message: "Section deleted successfully", sectionId });
+});
+
+// Conexión DeleteCourse: Endpoint para eliminar un curso completamente.
+// DELETE /courses?classCode=CODE elimina el curso, todas sus secciones, evaluaciones y relaciones con estudiantes.
+// Usa deleteClass() que ejecuta DETACH DELETE en Neo4j para remover el nodo Course y sus relaciones.
+app.delete("/courses", async (req, res) => {
+  const classCode = req.query.classCode;
+
+  if (!classCode) {
+    return res.status(400).json({ message: "Missing classCode. Use /courses?classCode=CODE" });
+  }
+
+  await deleteClass(neo4jDriver, classCode);
+  res.json({ message: "Course deleted successfully", classCode });
+});
+
 //DONE:
 app.post("/courses/evaluation", async (req, res) => {
   const classCode = req.query.classCode;
@@ -598,12 +652,110 @@ app.post("/courses/evaluation", async (req, res) => {
   await addEvaluation(neo4jDriver, classCode, evalId, name, type, normalizedContent);
   res.json({ message: "Evaluation added successfully", classCode, evalId });
 });
-//TODO:
-app.put("/courses/status", (req, res) => {
-  // Logic to update the status of a course
-  res.json({
-    message: `Course status updated for course ID: ${req.query.id}`,
-  });
+
+// Conexión AssessmentEditor: Endpoint para actualizar evaluaciones existentes.
+// PUT /courses/evaluation?evalId=ID requiere evalId, name, type, content en el body.
+// Usa updateEvaluation() que modifica el nodo Evaluation en Neo4j.
+app.put("/courses/evaluation", async (req, res) => {
+  const evalId = req.query.evalId;
+  const { name, type, content } = req.body;
+
+  if (!evalId || !name || !type || content == null) {
+    return res.status(400).json({ message: "Missing evaluation fields (evalId, name, type, content)" });
+  }
+
+  const normalizedContent = typeof content === "string" ? content : JSON.stringify(content);
+  await updateEvaluation(neo4jDriver, evalId, name, type, normalizedContent);
+  res.json({ message: "Evaluation updated successfully", evalId });
+});
+
+// Conexión AssessmentEditor: Endpoint para eliminar evaluaciones.
+// DELETE /courses/evaluation?evalId=ID elimina la evaluación completamente de Neo4j.
+// Usa deleteEvaluation() que ejecuta DETACH DELETE en Neo4j para remover el nodo y sus relaciones.
+// Llamado por handleDelete() en AssessmentEditor.jsx
+app.delete("/courses/evaluation", async (req, res) => {
+  const evalId = req.query.evalId;
+
+  if (!evalId) {
+    return res.status(400).json({ message: "Missing evalId. Use /courses/evaluation?evalId=ID" });
+  }
+
+  try {
+    await deleteEvaluation(neo4jDriver, evalId);
+    res.json({ message: "Evaluation deleted successfully", evalId });
+  } catch (error) {
+    console.error("Error deleting evaluation:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete evaluation",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Conexión CourseEditor: Endpoint para actualizar metadatos del curso
+// PUT /courses?classCode=CODE actualiza nombre, descripción, fechas e imagen en Neo4j
+// Body: {name, description, startDate, endDate, fotoPath}
+// Llamado por handleSaveCourse() en CourseEditor.jsx
+app.put("/courses", async (req, res) => {
+  const classCode = req.query.classCode;
+  
+  if (!classCode) {
+    return res.status(400).json({ message: "Missing classCode. Use /courses?classCode=CODE" });
+  }
+
+  const { name, description, startDate, endDate, fotoPath } = req.body;
+
+  try {
+    await updateClass(neo4jDriver, classCode, {
+      name,
+      description,
+      startDate,
+      endDate,
+      fotoPath
+    });
+
+    res.json({
+      message: "Course updated successfully",
+      classCode
+    });
+  } catch (error) {
+    console.error("Error updating course:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update course",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+//DONE:
+app.put("/courses/status", async (req, res) => {
+  // Conexión CourseEditor: Endpoint para actualizar estado de publicación del curso
+  // PUT /courses/status?id=CLASSCODE actualiza isPublished en Neo4j
+  // Llamado por publishCourse() en CourseEditor.jsx
+  const classCode = req.query.id;
+  const { isPublished } = req.body;
+
+  if (!classCode || isPublished === undefined) {
+    return res.status(400).json({ message: "Missing classCode or isPublished" });
+  }
+
+  try {
+    await updateClassVisibility(neo4jDriver, classCode, !!isPublished);
+    res.json({
+      message: `Course status updated successfully`,
+      classCode,
+      isPublished: !!isPublished
+    });
+  } catch (error) {
+    console.error("Error updating course status:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update course status",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 });
 //DONE:
 app.post("/courses/students", async (req, res) => {
@@ -632,24 +784,114 @@ app.get("/courses/mine", async (req, res) => {
     });
   }
 
+  console.log('[/courses/mine] Searching for courses with creatorId:', id);
   const classes = await getCreatedClasses(neo4jDriver, id);
+  console.log('[/courses/mine] Found', classes.length, 'courses');
   res.json({
     message: `Courses created by user ${id}`,
     classes,
   });
 });
-//DONE:
-app.post("/courses/clone", async (req, res) => {
-  const sourceClassCode = req.query.sourceClassCode;
-  const newClassCode = req.body.newClassCode || `${sourceClassCode}-clone`;
-  const creatorId = req.body.creatorId || req.body.id || null;
 
-  if (!newClassCode) {
-    return res.status(400).json({ message: "Missing newClassCode for cloned course" });
+// Conexión CreateCourse: Endpoint para validar disponibilidad de códigos
+// GET /courses/check-code?code=CLASSSCODE
+// Devuelve {exists: true/false} para validación en tiempo real en el formulario
+app.get("/courses/check-code", async (req, res) => {
+  const code = req.query.code;
+  
+  if (!code) {
+    return res.status(400).json({ message: "Missing code parameter. Use /courses/check-code?code=CLASSCODE" });
   }
 
-  const cloned = await cloneClass(neo4jDriver, sourceClassCode, newClassCode, creatorId);
-  res.json({ message: "Course cloned successfully", course: cloned });
+  try {
+    const exists = await classCodeExists(neo4jDriver, code);
+    res.json({ exists });
+  } catch (error) {
+    console.error("Error checking course code:", error.message);
+    res.status(500).json({ success: false, message: "Error checking course code" });
+  }
+});
+
+//DONE:
+app.post("/courses/clone", async (req, res) => {
+  try {
+    const sourceClassCode = req.query.sourceClassCode;
+    const newClassCode = req.body.newClassCode;
+    const creatorId = req.body.creatorId || req.body.id || null;
+
+    console.log('[CloneCourse] Request received - sourceCode:', sourceClassCode, 'newCode:', newClassCode, 'creatorId:', creatorId);
+
+    if (!sourceClassCode) {
+      return res.status(400).json({ message: "Missing sourceClassCode. Use /courses/clone?sourceClassCode=CODE" });
+    }
+
+    if (!newClassCode) {
+      return res.status(400).json({ message: "Missing newClassCode in request body" });
+    }
+
+    // Conexión CloneCourse: Validar que el nuevo código no esté duplicado
+    const codeExists = await classCodeExists(neo4jDriver, newClassCode);
+    if (codeExists) {
+      return res.status(409).json({
+        success: false,
+        message: `El código "${newClassCode}" ya está en uso. Por favor, usa otro.`
+      });
+    }
+
+    // Conexión CloneCourse: Pasar metadatos al backend para crear el curso clonado
+    // Metadatos del nuevo curso: código, nombre, fechas inicio/fin
+    // Mantiene: descripción, imagen (del original)
+    const newData = {
+      name: req.body.name || '',
+      description: req.body.description || '',
+      startDate: req.body.startDate || '',
+      endDate: req.body.endDate || null,
+      fotoPath: req.body.fotoPath || '',
+      creatorUsername: req.body.creatorUsername || ''
+    };
+
+    // Conexión CloneCourse: Crea el nuevo curso clonando secciones y materiales
+    console.log('[CloneCourse] Calling cloneClass with creatorId:', creatorId);
+    const cloned = await cloneClass(neo4jDriver, sourceClassCode, newClassCode, newData, creatorId);
+    if (!cloned) {
+      return res.status(404).json({ message: `Source course not found: ${sourceClassCode}` });
+    }
+
+    // Conexión CloneCourse: Esperar y reintentar hasta que el curso esté completamente disponible
+    // Problema: Neo4j necesita tiempo para replicar completamente los datos (especialmente las secciones)
+    // Solución: Hacer retries con delay creciente hasta que getClassDetails() retorne datos válidos
+    let fullDetails = null;
+    let retries = 0;
+    const maxRetries = 10;
+    const initialDelay = 100;
+    
+    while (!fullDetails && retries < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, initialDelay * (retries + 1)));
+      fullDetails = await getClassDetails(neo4jDriver, newClassCode);
+      retries++;
+      console.log(`[CloneCourse] Retry ${retries}/${maxRetries} - fullDetails available:`, !!fullDetails);
+    }
+
+    if (!fullDetails) {
+      // Fallback: retornar estructura básica si los detalles no están listos
+      fullDetails = {
+        class: cloned,
+        evaluations: [],
+        students: [],
+        sections: []
+      };
+    }
+
+    console.log('[CloneCourse] Clone completed successfully - classCode:', newClassCode);
+    res.json({ message: "Course cloned successfully", course: fullDetails });
+  } catch (error) {
+    console.error("Error cloning course:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to clone course. Please try again.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 });
 //DONE:
 app.get("/courses", async (req, res) => {

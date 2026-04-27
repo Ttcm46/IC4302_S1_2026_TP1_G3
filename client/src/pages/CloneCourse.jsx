@@ -97,6 +97,8 @@ export default function CloneCourse() {
   });
   const [preview, setPreview] = useState(source?.coverImage || '');
   const [error, setError] = useState('');
+  const [codeError, setCodeError] = useState(''); // Validación de código duplicado
+  const [isSubmitting, setIsSubmitting] = useState(false); // Estado de carga durante clonación
 
   useEffect(() => {
     const loadSource = async () => {
@@ -159,9 +161,21 @@ export default function CloneCourse() {
 
   // Se manejan cambios en el formulario y la imagen, con validación básica al enviar.
 
-  const handleChange = (event) => {
+  const handleChange = async (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+
+    // Conexión CloneCourse: Validar código en tiempo real
+    if (name === 'code' && value.trim()) {
+      const exists = await courseService.checkCodeExists(value.trim());
+      if (exists) {
+        setCodeError(`El código "${value.trim()}" ya está en uso. Por favor, usa otro.`);
+      } else {
+        setCodeError("");
+      }
+    } else if (name === 'code') {
+      setCodeError("");
+    }
   };
 
   const handleImage = (event) => {
@@ -186,22 +200,32 @@ export default function CloneCourse() {
       return;
     }
 
+    if (codeError) {
+      setError(codeError);
+      return;
+    }
+
     if (form.endDate && form.endDate < form.startDate) {
       setError('La fecha de fin no puede ser menor a la de inicio.');
       return;
     }
 
+    // Conexión CloneCourse: Mostrar estado de carga y esperar a que se clone completamente
+    setIsSubmitting(true);
     try {
       const response = await courseService.cloneCourse(id, form);
-      const newCourseCode = response.data?.course?.classCode;
+      const newCourseCode = response.data?.course?.class?.classCode;
       if (!newCourseCode) {
         setError('No se pudo crear la copia del curso. Inténtalo de nuevo.');
+        setIsSubmitting(false);
         return;
       }
 
+      // Navegación exitosa tras clonar completamente
       navigate(`/courses/${newCourseCode}/manage`);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo crear la copia del curso. Inténtalo de nuevo.');
+      setIsSubmitting(false);
       return;
     }
   };
@@ -238,6 +262,7 @@ export default function CloneCourse() {
                   onChange={handleChange}
                   required
                 />
+                {codeError && <p className="error-text">{codeError}</p>}
               </div>
 
               <div className="form-group">
@@ -308,16 +333,27 @@ export default function CloneCourse() {
 
             {error && <p className="error-text">{error}</p>}
 
+            {isSubmitting && (
+              <div className="clone-submitting-message">
+                <p>⏳ Clonando curso... Por favor espera a que se complete.</p>
+              </div>
+            )}
+
             <div className="form-actions">
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => navigate(`/courses/${id}/manage`)}
+                disabled={isSubmitting}
               >
                 Cancelar
               </button>
-              <button type="submit" className="btn-primary">
-                Crear copia del curso
+              <button 
+                type="submit" 
+                className="btn-primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Clonando...' : 'Crear copia del curso'}
               </button>
             </div>
           </form>

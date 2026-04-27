@@ -21,18 +21,20 @@ export function connectToNeo4j(uri, user, password) {
  */
 export async function createClass(driver, data, creatorId) {
   const session = driver.session();
-  let classCode, name, description, startDate, endDate, fotoPath = null;
+  let classCode, name, description, startDate, endDate, fotoPath, isPublished, creatorUsername;
   classCode = data.classCode;
   name = data.name;
   description = data.description;
   startDate = data.startDate;
   endDate = data.endDate || "00/00/0000";
   fotoPath = data.fotoPath || null;
+  isPublished = data.isPublished || false;
+  creatorUsername = data.creatorUsername || '';
 
   try {
     await session.run(
-      "CREATE (c:Class {classCode: $classCode, name: $name, description: $description, creatorId: $creatorId, startDate: $startDate, endDate: $endDate, fotoPath: $fotoPath})",
-      { classCode, name, description, creatorId, startDate, endDate, fotoPath },
+      "CREATE (c:Class {classCode: $classCode, name: $name, description: $description, creatorId: $creatorId, creatorUsername: $creatorUsername, startDate: $startDate, endDate: $endDate, fotoPath: $fotoPath, isPublished: $isPublished})",
+      { classCode, name, description, creatorId, creatorUsername, startDate, endDate, fotoPath, isPublished },
     );
 
     const result = await session.run(
@@ -50,6 +52,28 @@ export async function createClass(driver, data, creatorId) {
     await session.close();
   }
 };
+
+/**
+ * Check if a class code already exists in the database
+ * Conexión CreateCourse: Verifica códigos duplicados
+ * @param {neo4j.Driver} driver - The Neo4j driver
+ * @param {string} classCode - Class code to check
+ * @returns {Promise<boolean>} True if exists, false otherwise
+ */
+export async function classCodeExists(driver, classCode) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      'MATCH (c:Class {classCode: $classCode}) RETURN count(c) as count',
+      { classCode }
+    );
+    const count = result.records[0]?.get('count');
+    return count > 0;
+  } finally {
+    await session.close();
+  }
+}
+
 /**
  * Add an evaluation to a class
  * @param {neo4j.Driver} driver - The Neo4j driver
@@ -77,6 +101,185 @@ export async function addEvaluation(
       { classCode, evalId, name, type, content },
     )
     ;
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Update an existing evaluation in a class.
+ * Conexión AssessmentEditor: Permite editar evaluaciones (título, fechas, preguntas).
+ * @param {neo4j.Driver} driver - The Neo4j driver
+ * @param {string} evalId - Evaluation ID to update
+ * @param {string} name - New evaluation name
+ * @param {string} type - Evaluation type (exam, quiz, etc)
+ * @param {string} content - Stringified JSON with updated questions/dates
+ * @returns {Promise<void>}
+ */
+export async function updateEvaluation(driver, evalId, name, type, content) {
+  const session = driver.session();
+  try {
+    await session.run(
+      `MATCH (e:Evaluation {evalId: $evalId})
+       SET e.name = $name, e.type = $type, e.content = $content`,
+      { evalId, name, type, content },
+    );
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Delete an evaluation from a class.
+ * Conexión AssessmentEditor: Permite eliminar evaluaciones.
+ * @param {neo4j.Driver} driver - The Neo4j driver
+ * @param {string} evalId - Evaluation ID to delete
+ * @returns {Promise<void>}
+ */
+export async function deleteEvaluation(driver, evalId) {
+  const session = driver.session();
+  try {
+    await session.run(
+      `MATCH (e:Evaluation {evalId: $evalId})
+       DETACH DELETE e`,
+      { evalId },
+    );
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Delete a section (and its subsections recursively if needed).
+ * Conexión SectionEditor: Permite eliminar secciones.
+ * @param {neo4j.Driver} driver - The Neo4j driver
+ * @param {string} sectionId - Section ID to delete
+ * @returns {Promise<void>}
+ */
+export async function deleteSection(driver, sectionId) {
+  const session = driver.session();
+  try {
+    // Use DETACH DELETE to remove all relationships and the node itself
+    await session.run(
+      `MATCH (s:Section {sectionId: $sectionId})
+       DETACH DELETE s`,
+      { sectionId },
+    );
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Delete a class and all its relationships (sections, evaluations, students)
+ * Conexión DeleteCourse: Elimina un curso completamente de Neo4j.
+ * DETACH DELETE elimina el nodo Class y todas sus relaciones en una operación.
+ * @param {neo4j.Driver} driver - The Neo4j driver
+ * @param {string} classCode - Class code to delete
+ * @returns {Promise<void>}
+ */
+export async function deleteClass(driver, classCode) {
+  const session = driver.session();
+  try {
+    await session.run(
+      `MATCH (c:Class {classCode: $classCode})
+       DETACH DELETE c`,
+      { classCode },
+    );
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Update class metadata (name, description, dates, image)
+ * Conexión CourseEditor: Persiste cambios de metadatos en Neo4j
+ * @param {neo4j.Driver} driver - The Neo4j driver
+ * @param {string} classCode - Class code
+ * @param {Object} data - Updated data (name, description, startDate, endDate, fotoPath)
+ * @returns {Promise<Object>} Updated class properties
+ */
+export async function updateClass(driver, classCode, data) {
+  const session = driver.session();
+  try {
+    // Construir dinámicamente qué campos actualizar
+    const setClause = [];
+    const params = { classCode };
+    
+    if (data.name !== undefined) {
+      setClause.push('c.name = $name');
+      params.name = data.name;
+    }
+    if (data.description !== undefined) {
+      setClause.push('c.description = $description');
+      params.description = data.description;
+    }
+    if (data.startDate !== undefined) {
+      setClause.push('c.startDate = $startDate');
+      params.startDate = data.startDate;
+    }
+    if (data.endDate !== undefined) {
+      setClause.push('c.endDate = $endDate');
+      params.endDate = data.endDate;
+    }
+    if (data.fotoPath !== undefined) {
+      setClause.push('c.fotoPath = $fotoPath');
+      params.fotoPath = data.fotoPath;
+    }
+
+    if (setClause.length === 0) {
+      return null;
+    }
+
+    await session.run(
+      `MATCH (c:Class {classCode: $classCode})
+       SET ${setClause.join(', ')}`,
+      params
+    );
+
+    // Retornar propiedades actualizadas
+    const result = await session.run(
+      'MATCH (c:Class {classCode: $classCode}) RETURN c LIMIT 1',
+      { classCode }
+    );
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    return result.records[0].get("c").properties;
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Update class publication status
+ * Conexión CourseEditor: Persiste estado público/oculto en Neo4j
+ * @param {neo4j.Driver} driver - The Neo4j driver
+ * @param {string} classCode - Class code
+ * @param {boolean} isPublished - Publication status
+ * @returns {Promise<Object>} Updated class properties
+ */
+export async function updateClassVisibility(driver, classCode, isPublished) {
+  const session = driver.session();
+  try {
+    await session.run(
+      `MATCH (c:Class {classCode: $classCode})
+       SET c.isPublished = $isPublished`,
+      { classCode, isPublished }
+    );
+
+    const result = await session.run(
+      'MATCH (c:Class {classCode: $classCode}) RETURN c LIMIT 1',
+      { classCode }
+    );
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    return result.records[0].get("c").properties;
   } finally {
     await session.close();
   }
@@ -154,21 +357,38 @@ export async function addSection(
 export async function getClassDetails(driver, classCode) {
   const session = driver.session();
   try {
+    // IMPORTANTE: Usar list comprehension [(c)-[:REL]->(n) | n] en lugar de OPTIONAL MATCH + collect()
+    // Problema original: Con N estudiantes y M secciones, OPTIONAL MATCH retornaba N×M records,
+    // causando que evaluaciones y secciones se triplicaran (multiplicaban) en la UI.
+    // Referencia: https://neo4j.com/docs/cypher-manual/current/syntax/expressions/
     const result = await session.run(
       `MATCH (c:Class {classCode: $classCode})
-       OPTIONAL MATCH (c)-[:HAS_EVALUATION]->(e:Evaluation)
-       OPTIONAL MATCH (c)-[:HAS_STUDENT]->(s:Student)
-       OPTIONAL MATCH (c)-[:HAS_SECTION]->(sec:Section)
-       RETURN c, collect(e) as evaluations, collect(s) as students, collect(sec) as sections`,
+       RETURN c,
+         [(c)-[:HAS_EVALUATION]->(e) | e] as evaluations,
+         [(c)-[:HAS_STUDENT]->(s) | s] as students,
+         [(c)-[:HAS_SECTION]->(sec) | 
+           {
+             section: sec,
+             resources: [(sec)-[:HAS_RESOURCE]->(r) | r]
+           }
+         ] as sectionsWithResources`,
       { classCode },
     );
     if (result.records.length === 0) return null;
     const record = result.records[0];
+    
+    // Mapear secciones con sus recursos
+    const sectionsWithResources = record.get("sectionsWithResources");
+    const sections = sectionsWithResources.map(item => ({
+      ...item.section.properties,
+      resources: item.resources.filter(r => r !== null).map(r => r.properties)
+    }));
+    
     return {
       class: record.get("c").properties,
-      evaluations: record.get("evaluations").map((e) => e.properties),
-      students: record.get("students").map((s) => s.properties),
-      sections: record.get("sections").map((sec) => sec.properties),
+      evaluations: record.get("evaluations").filter((e) => e !== null).map((e) => e.properties),
+      students: record.get("students").filter((s) => s !== null).map((s) => s.properties),
+      sections: sections,
     };
   } finally {
     await session.close();
@@ -270,37 +490,75 @@ export async function updateSection(driver, sectionId, description) {
  * @param {string|null} creatorId - Optional creator ID for the cloned class
  * @returns {Promise<Object|null>} The cloned class properties or null
  */
-export async function cloneClass(driver, sourceClassCode, newClassCode, creatorId = null) {
+export async function cloneClass(driver, sourceClassCode, newClassCode, newData, creatorId = null) {
   const session = driver.session();
   try {
-    const result = await session.run(     //https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZndxcXUxZmNnaGs3N2o1dnZyYmU0bWcyemwyaHNrMDM5Mm5sMmZlZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LrQdI5XBVw8mdMDfFN/giphy.gif 
+    // Conexión CloneCourse: Crea un nuevo curso clonando la estructura completa
+    // 1. Copia todas las secciones y sus materiales (recursos)
+    // 2. Crea nuevo nodo Class con metadatos proporcionados
+    // 3. NO copia evaluaciones (deben recalibrarse en nuevo contexto)
+    
+    console.log('[cloneClass] Starting clone: source=', sourceClassCode, 'new=', newClassCode, 'creatorId=', creatorId);
+    
+    // Paso 1: Obtener todas las secciones y recursos del original
+    const sourceData = await session.run(
       `MATCH (c:Class {classCode: $sourceClassCode})
-       OPTIONAL MATCH (c)-[:HAS_EVALUATION]->(e:Evaluation)
        OPTIONAL MATCH (c)-[:HAS_SECTION]->(s:Section)
-       OPTIONAL MATCH (c)-[:HAS_STUDENT]->(st:Student)
-       WITH c, collect(DISTINCT e) as evaluations, collect(DISTINCT s) as sections, collect(DISTINCT st) as students
-       CREATE (clone:Class {classCode: $newClassCode, name: c.name, description: c.description, creatorId: coalesce($creatorId, c.creatorId), startDate: c.startDate, endDate: c.endDate, fotoPath: c.fotoPath})
-       WITH clone, evaluations, sections, students
-       UNWIND evaluations as ev
-         CREATE (ce:Evaluation {evalId: ev.evalId, name: ev.name, type: ev.type, content: ev.content})
-         CREATE (clone)-[:HAS_EVALUATION]->(ce)
-       WITH clone, sections, students
-       UNWIND sections as sec
-         CREATE (cs:Section {sectionId: sec.sectionId + '_copy', description: sec.description})
-         CREATE (clone)-[:HAS_SECTION]->(cs)
-       WITH clone, students
-       UNWIND students as st
-         MERGE (s:Student {studentId: st.studentId})
-         CREATE (clone)-[:HAS_STUDENT]->(s)
-       RETURN clone`,
-      { sourceClassCode, newClassCode, creatorId },
+       OPTIONAL MATCH (s)-[:HAS_RESOURCE]->(r:Resource)
+       RETURN s, collect(r) as resources`,
+      { sourceClassCode }
     );
 
-    if (result.records.length === 0) {
+    // Paso 2: Crear el nuevo Class
+    const createResult = await session.run(
+      `CREATE (clone:Class {classCode: $newClassCode, name: $name, description: $description, creatorId: $creatorId, creatorUsername: $creatorUsername, startDate: $startDate, endDate: $endDate, fotoPath: $fotoPath, isPublished: false})
+       RETURN clone`,
+      {
+        newClassCode,
+        creatorId: creatorId || '', // Asegurar que siempre haya un valor
+        name: newData.name || '',
+        description: newData.description || '',
+        startDate: newData.startDate || '',
+        endDate: newData.endDate || null,
+        fotoPath: newData.fotoPath || '',
+        creatorUsername: newData.creatorUsername || ''
+      }
+    );
+
+    if (createResult.records.length === 0) {
       return null;
     }
 
-    return result.records[0].get("clone").properties;
+    const cloned = createResult.records[0].get("clone").properties;
+    console.log('[cloneClass] New course created - classCode:', cloned.classCode, 'creatorId:', cloned.creatorId);
+    
+    // Paso 3: Copiar secciones y sus recursos
+    for (const record of sourceData.records) {
+      const section = record.get('s');
+      const resources = record.get('resources');
+
+      if (section) {
+        const newSectionId = section.properties.sectionId + '_' + newClassCode;
+
+        // Crear nueva sección
+        await session.run(
+          `MATCH (clone:Class {classCode: $newClassCode})
+           CREATE (clone)-[:HAS_SECTION]->(newSec:Section {sectionId: $sectionId, description: $description})
+           WITH newSec
+           UNWIND $resources as resData
+             CREATE (newSec)-[:HAS_RESOURCE]->(newRes:Resource {resourceId: resData.resourceId + '_' + $newClassCode, name: resData.name, type: resData.type, content: resData.content, url: resData.url})
+           RETURN newSec`,
+          {
+            newClassCode,
+            sectionId: newSectionId,
+            description: section.properties.description || '',
+            resources: resources.map(r => r.properties)
+          }
+        );
+      }
+    }
+
+    return cloned;
   } finally {
     await session.close();
   }
@@ -333,11 +591,13 @@ export async function getAllClasses(driver) {
 export async function getCreatedClasses(driver, creatorId) {
   const session = driver.session();
   try {
+    console.log('[getCreatedClasses] Querying Neo4j for classes with creatorId:', creatorId);
     const result = await session.run(
       `MATCH (c:Class {creatorId: $creatorId})
        RETURN c`,
       { creatorId },
     );
+    console.log('[getCreatedClasses] Query result count:', result.records.length);
     return result.records.map((record) => record.get("c").properties);
   } finally {
     await session.close();

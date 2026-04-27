@@ -40,6 +40,7 @@ export default function CreateCourse() {
   const [form, setForm] = useState(initialForm);
   const [preview, setPreview] = useState("");
   const [error, setError] = useState("");
+  const [codeError, setCodeError] = useState(""); // Validación de código duplicado
   const [loading, setLoading] = useState(false);
 
   // ============================================
@@ -51,10 +52,24 @@ export default function CreateCourse() {
    * 
    * Qué hace: Actualiza un campo del formulario.
    * Cómo: Destructura name/value del input y actualiza form[name].
+   *       Si es el código, valida en tiempo real si ya existe.
    */
-  const handleChange = (event) => {
+  const handleChange = async (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+
+    // Conexión CreateCourse: Validar código en tiempo real
+    // Si el usuario escribe un código, verificar con el backend si ya existe
+    if (name === 'code' && value.trim()) {
+      const exists = await courseService.checkCodeExists(value.trim());
+      if (exists) {
+        setCodeError(`El código "${value.trim()}" ya está en uso. Por favor, usa otro.`);
+      } else {
+        setCodeError("");
+      }
+    } else if (name === 'code') {
+      setCodeError("");
+    }
   };
 
   /**
@@ -89,6 +104,11 @@ export default function CreateCourse() {
       return;
     }
 
+    if (codeError) {
+      setError(codeError);
+      return;
+    }
+
     if (form.endDate && form.endDate < form.startDate) {
       setError("La fecha de fin no puede ser menor a la fecha de inicio.");
       return;
@@ -118,6 +138,7 @@ export default function CreateCourse() {
           <div className="form-group">
             <label htmlFor="code">Código del Curso *</label>
             <input id="code" name="code" type="text" value={form.code} onChange={handleChange} placeholder="Ej: IC4302" required />
+            {codeError ? <p className="error-text" style={{marginTop: '0.5rem'}}>{codeError}</p> : null}
           </div>
 
           <div className="form-group">

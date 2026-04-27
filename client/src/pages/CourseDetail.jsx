@@ -106,7 +106,7 @@ export default function CourseDetail() {
             <div className="meta-item"><span>Docente</span><strong>{course.teacher || "Docente no definido"}</strong></div>
             <div className="meta-item"><span>Estudiantes matriculados</span><strong>{course.students ?? 0}</strong></div>
             <div className="meta-item"><span>Fecha de inicio</span><strong>{formatDate(course.startDate)}</strong></div>
-            <div className="meta-item"><span>Fecha de fin</span><strong>{formatDate(course.endDate)}</strong></div>
+            <div className="meta-item"><span>Fecha de fin</span><strong>{course.endDate && course.endDate !== '00/00/0000' ? formatDate(course.endDate) : 'Siempre disponible'}</strong></div>
           </div>
         </div>
 

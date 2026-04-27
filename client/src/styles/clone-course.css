@@ -265,3 +265,18 @@
     max-height: 360px;
   }
 }
+
+/* Estado de clonación en progreso */
+.clone-submitting-message {
+  margin: 1rem 0;
+  padding: 0.8rem 1rem;
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+  border-radius: 0.4rem;
+  color: #1565c0;
+}
+
+.clone-submitting-message p {
+  margin: 0;
+  font-weight: 500;
+}
