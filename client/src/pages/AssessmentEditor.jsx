@@ -57,9 +57,11 @@ export default function ManageAssessmentDetail() {
   // DATA FETCHING
   const [course, setCourse] = useState(null);
   const [assessment, setAssessment] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadAssessment = async () => {
+      setLoading(true);
       const response = await courseService.getCourse(id);
       const loadedCourse = response.data?.course || null;
       setCourse(loadedCourse);
@@ -68,6 +70,7 @@ export default function ManageAssessmentDetail() {
         (item) => String(item.id) === String(assessmentId)
       ) || null;
       setAssessment(foundAssessment);
+      setLoading(false);
     };
 
     loadAssessment();
@@ -97,6 +100,20 @@ export default function ManageAssessmentDetail() {
       }))
     );
   }, [assessment]);
+
+  if (loading) {
+    return (
+      <div className="manage-assessment-page">
+        <button type="button" className="back-button" onClick={() => navigate(`/courses/${id}/manage`)}>
+          ← Volver
+        </button>
+        <div className="loading-screen">
+          <div className="loading-spinner" />
+          <p>Cargando evaluación...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!course || !assessment) {
     return (

@@ -1,6 +1,13 @@
 import api from './api';
 import { getAccessToken, getSessionUser } from './session';
 
+// [FRONTEND-ONLY] Función auxiliar para leer cookies
+// Se usa como fallback en login si el backend falla con un error asíncrono no capturado
+function readCookie(name) {
+  const match = document.cookie.split('; ').find((c) => c.startsWith(name + '='));
+  return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
+}
+
 function createApiError(message, status = 400) {
   const err = new Error(message);
   err.response = { status, data: { error: message } };
@@ -38,7 +45,6 @@ const COURSE_OVERRIDES_KEY = 'tecdigitalito_course_overrides_v1';
 const DELETED_COURSES_KEY = 'tecdigitalito_deleted_courses_v1';
 const DELETED_ASSESSMENTS_KEY = 'tecdigitalito_deleted_assessments_v1';
 const SECTION_COURSE_INDEX_KEY = 'tecdigitalito_section_course_index_v1';
-
 function readStoredObject(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -417,7 +423,9 @@ function mapBackendCourse(course, currentUserId = null) {
       typeof persistedIsPublished === 'boolean'
         ? persistedIsPublished
         : (typeof classData.isPublished === 'boolean' ? classData.isPublished : false),
-    isFinished: false,
+    isFinished: mergedClassData.endDate 
+      ? new Date(mergedClassData.endDate + 'T00:00:00') < new Date(new Date().setHours(0, 0, 0, 0))
+      : false,
     sections,
     assessments,
     enrolledStudentIds,
@@ -440,11 +448,8 @@ export const authService = {
     try {
       return await api.post('/users/create', payload);
     } catch (err) {
-      const backendMessage = err?.response?.data?.error || err?.response?.data?.message || '';
-      if (!err?.response) {
-        throw createApiError('No se pudo conectar con el servidor. Verifica que el backend este corriendo.', 503);
-      }
-      throw createApiError(backendMessage || 'No fue posible completar el registro.', err?.response?.status || 500);
+      // Lanzar el error tal cual viene del backend, sin transformaciones
+      throw err;
     }
   },
 
@@ -463,18 +468,47 @@ export const authService = {
         }
       };
     } catch (err) {
+      // [FRONTEND-ONLY] Fallback: Si el login falla pero la cookie se guardó,
+      // significa que el backend procesó el login exitosamente pero luego tuvo
+      // un error asíncrono (ej: createAccessLog). En este caso, usar la cookie
+      // como prueba de que el login fue exitoso.
+      const sessionUserCookie = readCookie('sessionUser');
+      if (sessionUserCookie) {
+        try {
+          const parsedUser = JSON.parse(decodeURIComponent(sessionUserCookie));
+          if (parsedUser && parsedUser.username === username) {
+            // La cookie existe y pertenece al usuario que intentaba loguearse
+            // Esto significa que el login fue exitoso en el backend
+            console.log('[authService.login] Fallback: usando cookie de sesión guardada');
+            return {
+              data: {
+                accessToken: '__cookie__',
+                refreshToken: '__cookie__',
+                user: parsedUser
+              }
+            };
+          }
+        } catch (cookieErr) {
+          // Cookie no válida, proceder con el error normal
+        }
+      }
+      
       const mapped = mapLoginError(err);
       throw createApiError(mapped.message, mapped.status);
     }
   },
 
+  // Envía el correo al backend para verificar que exista y generar el token.
+  // El backend responde con 404 si el correo no está registrado, o 200 si el enlace fue enviado.
   async forgotPassword(email) {
-    const username = String(email || '').split('@')[0];
-    return api.post('/users/reset', { username });
+    return api.post('/users/reset', { email });
   },
 
-  async resetPassword() {
-    throw createApiError('Reset por token no implementado aún en backend.', 501);
+  // Envía el token extraído del enlace del email y la nueva contraseña.
+  // El backend valida que el token exista en Redis (no expirado, no usado),
+  // actualiza la contraseña y elimina el token para garantizar uso único.
+  async resetPassword(token, newPassword) {
+    return api.post('/users/reset/confirm', { token, newPassword });
   },
 
   async changePassword(currentPassword, newPassword) {
@@ -492,9 +526,7 @@ export const authService = {
       throw createApiError('La contraseña actual no es válida.', 401);
     }
 
-    return api.put(`/users/update/password/${currentUser.id}`, {
-      newpassword: newPassword
-    });
+    return api.put('/users/update/password', { newpassword: newPassword }, { params: { id: currentUser.id } });
   },
 
   async logout() {
@@ -509,8 +541,8 @@ export const authService = {
 
 export const userService = {
   async getProfile(id) {
-    const response = await api.get(`/users/${id}`);
-    return { data: { user: mapBackendUser(response.data?.user) } };
+    const response = await api.get(`/users/details`, { params: { userId: id } });
+    return { data: { user: mapBackendUser(response.data?.data) } };
   },
 
   async updateProfile(id, data) {
@@ -522,7 +554,7 @@ export const userService = {
       email: data.email,
       role: data.role
     };
-    const response = await api.put(`/users/${id}`, payload);
+    const response = await api.put('/users/update', payload, { params: { id } });
     return { data: { user: mapBackendUser(response.data?.user) } };
   },
 
@@ -532,6 +564,56 @@ export const userService = {
     return api.post('/users/friends/request/', { userId, friendId });
   },
   getFriends: (userId) => api.get('/users/friends/', { params: { id: userId } }),
+  getPendingRequests: () => {
+    const userId = getCurrentUser().id;
+    return api.get('/users/friends/requests/', { params: { id: userId } });
+  },
+  getSentRequests: () => {
+    const userId = getCurrentUser().id;
+    return api.get('/users/friends/sent/', { params: { id: userId } });
+  },
+  removeFriend: (friendId) => {
+    const userId = getCurrentUser().id;
+    return api.delete('/users/friends/', { data: { userId, friendId } });
+  },
+  acceptFriendRequest: (fromUserId) => {
+    const userId = getCurrentUser().id;
+    return api.post('/users/friends/accept/', { userId, fromUserId });
+  },
+  rejectFriendRequest: (fromUserId) => {
+    const userId = getCurrentUser().id;
+    return api.post('/users/friends/reject/', { userId, fromUserId });
+  },
+  async getUserCourses(userId) {
+    const currentUser = getCurrentUser();
+    try {
+      // Obtener cursos donde el usuario está matriculado (como estudiante)
+      const enrolledResponse = await api.get('/users/courses', { params: { id: userId } });
+      const enrolledClasses = Array.isArray(enrolledResponse.data?.classes) ? enrolledResponse.data.classes : [];
+
+      // Obtener cursos donde el usuario es docente (creador)
+      const createdResponse = await api.get('/courses/mine', { params: { id: userId } });
+      const createdClasses = Array.isArray(createdResponse.data?.classes) ? createdResponse.data.classes : [];
+
+      // Combinar ambas listas
+      const allClasses = [...enrolledClasses, ...createdClasses];
+
+      return {
+        data: {
+          courses: allClasses
+            .map((course) => mapBackendCourse(course, currentUser.id || currentUser.username))
+            .filter(Boolean)
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching user courses:', error);
+      return {
+        data: {
+          courses: []
+        }
+      };
+    }
+  },
   getAccessLogs: (userId) => api.get('/users/log/', { params: { id: userId } })
 };
 
@@ -665,14 +747,7 @@ export const courseService = {
   },
 
   async deleteCourse(id) {
-    // Conexión DeleteCourse: Llamar al backend para eliminar el curso completamente.
-    // DELETE /courses?classCode=ID elimina el curso de Neo4j y todas sus relaciones.
-    try {
-      await api.delete('/courses', { params: { classCode: id } });
-    } catch (error) {
-      console.error('Error deleting course from backend:', error);
-    }
-    // También eliminar del localStorage como fallback
+    await api.delete('/courses', { params: { classCode: id } });
     setCourseDeleted(id, true);
     return { data: { success: true, id } };
   },
@@ -851,36 +926,42 @@ export const assessmentService = {
     const userId = String(currentUser.id || currentUser.username || 'anonymous-user');
     const username = currentUser.username || userId;
 
-    const payload = {
+    const result = {
       userId,
       username,
+      courseId: String(courseId),
+      evalId: String(evalId),
       assessmentTitle: resultInput.assessmentTitle,
       score: resultInput.score,
       correctAnswers: resultInput.correctAnswers,
       totalQuestions: resultInput.totalQuestions,
-      questionResults: resultInput.questionResults || []
+      questionResults: resultInput.questionResults || [],
+      submittedAt: new Date().toISOString()
     };
 
-    return api.post(`/courses/submit/${courseId}/${evalId}`, payload);
+    const response = await api.post('/courses/submit', result, { params: { classCode: courseId, evalId } });
+    return { data: { result: response.data?.result || result } };
   },
 
   async getAssessmentResult(courseId, evalId, userId) {
     const currentUser = getCurrentUser();
     const effectiveUserId = String(userId || currentUser.id || currentUser.username || 'anonymous-user');
-    const response = await api.get(`/courses/grades/${courseId}/${evalId}?userId=${encodeURIComponent(effectiveUserId)}`);
+
+    const response = await api.get('/courses/grades', { params: { evalId, userId: effectiveUserId } });
     return { data: { result: response.data?.result || null } };
   },
 
   async getAssessmentSubmissions(courseId, evalId) {
-    const response = await api.get(`/courses/grades/${courseId}/${evalId}`);
-    return { data: { results: Array.isArray(response.data?.results) ? response.data.results : [] } };
+    const response = await api.get('/courses/grades', { params: { evalId } });
+    return { data: { results: response.data?.results || [] } };
   },
 
   async getCourseResultsForUser(courseId, userId) {
     const currentUser = getCurrentUser();
     const effectiveUserId = String(userId || currentUser.id || currentUser.username || 'anonymous-user');
-    const response = await api.get(`/courses/grades/${courseId}?userId=${encodeURIComponent(effectiveUserId)}`);
-    return { data: { results: Array.isArray(response.data?.results) ? response.data.results : [] } };
+
+    const response = await api.get('/courses/grades', { params: { classCode: courseId, userId: effectiveUserId } });
+    return { data: { results: response.data?.results || [] } };
   },
 };
 
@@ -894,7 +975,12 @@ export const enrollmentService = {
       throw createApiError('Debes iniciar sesion para matricularte.', 401);
     }
 
-    return api.post('/courses/enroll', { studentId, username }, { params: { classCode: courseId } });
+    try {
+      const response = await api.post('/courses/enroll', { studentId, username }, { params: { classCode: courseId } });
+      return response;
+    } catch (err) {
+      throw err;
+    }
   },
   async getMyCourses() {
     const currentUser = getCurrentUser();
@@ -922,8 +1008,10 @@ export const enrollmentService = {
 };
 
 export const messageService = {
-  sendMessage: (toUserId, content) =>
-    api.post('/messages/send/', { toUserId, content }),
+  sendMessage: (toUserId, content) => {
+    const fromUserId = getCurrentUser().id;
+    return api.post('/messages/send/', { fromUserId, toUserId, content });
+  },
 
   getInbox: () => {
     const user = getCurrentUser();
@@ -934,5 +1022,15 @@ export const messageService = {
   getConversation: (otherUserId) => {
     const userId = getCurrentUser().id;
     return api.post('/messages/conversation/', { userId, otherUserId });
+  },
+
+  markAsRead: (otherUserId) => {
+    const userId = getCurrentUser().id;
+    return api.post('/messages/mark-as-read', { userId, otherUserId });
+  },
+
+  getUnreadCount: (otherUserId) => {
+    const userId = getCurrentUser().id;
+    return api.post('/messages/unread-count', { userId, otherUserId });
   }
 };

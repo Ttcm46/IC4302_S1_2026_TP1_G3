@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { enrollmentService, messageService, userService } from '../services/auth';
+import { enrollmentService, userService } from '../services/auth';
 import { getSessionUser } from '../services/session';
 import '../styles/dashboard.css';
 
@@ -228,51 +228,87 @@ export default function Dashboard() {
   const [createdCourses, setCreatedCourses] = useState([]);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [friends, setFriends] = useState([]);
-  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     const loadDashboard = async () => {
-      const [createdResult, enrolledResult, friendsResult, inboxResult] = await Promise.allSettled([
+      setLoading(true);
+      const [createdResult, enrolledResult, friendsResult] = await Promise.allSettled([
         enrollmentService.getTeachingCourses(),
         enrollmentService.getMyCourses(),
-        currentUserId !== 'anonymous-user' ? userService.getFriends(currentUserId) : Promise.resolve(null),
-        currentUserId !== 'anonymous-user' ? messageService.getInbox() : Promise.resolve(null)
+        currentUserId !== 'anonymous-user' ? userService.getFriends(currentUserId) : Promise.resolve(null)
       ]);
 
       const createdResponse = createdResult.status === 'fulfilled' ? createdResult.value : null;
       const enrolledResponse = enrolledResult.status === 'fulfilled' ? enrolledResult.value : null;
       const friendsResponse = friendsResult.status === 'fulfilled' ? friendsResult.value : null;
-      const inboxResponse = inboxResult.status === 'fulfilled' ? inboxResult.value : null;
 
       setCreatedCourses(Array.isArray(createdResponse?.data?.courses) ? createdResponse.data.courses : []);
       setEnrolledCourses(Array.isArray(enrolledResponse?.data?.courses) ? enrolledResponse.data.courses : []);
 
       const rawFriends = friendsResponse?.data?.friends;
-      if (Array.isArray(rawFriends)) {
-        setFriends(rawFriends.map((f) => ({
-          id: String(f.id || f.userId || f),
-          username: String(f.username || f.id || f.userId || f),
-          fullName: String(f.name || f.fullName || f.username || f.id || f.userId || f),
-          avatar: f.picPath || f.avatar || ''
-        })));
+      if (Array.isArray(rawFriends) && rawFriends.length > 0) {
+        const enriched = await Promise.all(
+          rawFriends.map(async (f) => {
+            const id = String(f.id || f.userId || f);
+            try {
+              const res = await userService.getProfile(id);
+              const u = res.data?.user;
+              return {
+                id,
+                username: u?.username || id,
+                fullName: u?.fullName || u?.username || id,
+                avatar: u?.avatar || u?.picPath || ''
+              };
+            } catch {
+              return { id, username: id, fullName: id, avatar: '' };
+            }
+          })
+        );
+        setFriends(enriched);
       } else {
         setFriends([]);
       }
 
-      const inboxMessages =
-        (Array.isArray(inboxResponse?.data?.data) && inboxResponse.data.data)
-        || (Array.isArray(inboxResponse?.data?.messages) && inboxResponse.data.messages)
-        || [];
-      setUnreadMessages(inboxMessages.filter((message) => message?.read !== true).length);
+      setLoading(false);
     };
 
     loadDashboard();
   }, [currentUserId]);
 
+  if (loading) {
+    return (
+      <div className="dashboard-page">
+        <div className="loading-screen">
+          <div className="loading-spinner" />
+          <p>Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const userInitials = (() => {
+    const source = user.fullName || user.username || 'U';
+    const parts = source.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'U';
+    if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  })();
+
   return (
     <div className="dashboard-page">
       <section className="dashboard-header">
-        <h1>Bienvenido {user.fullName || user.username || 'Usuario'}</h1>
+        <div className="dashboard-header-profile">
+          {user.avatar ? (
+            <img src={user.avatar} alt="Avatar" className="dashboard-profile-avatar" />
+          ) : (
+            <div className="dashboard-profile-avatar dashboard-profile-avatar-fallback">{userInitials}</div>
+          )}
+          <div>
+            <h1>Bienvenido, {user.fullName || user.username || 'Usuario'}</h1>
+            <p className="dashboard-profile-username">@{user.username || user.id || ''}</p>
+          </div>
+        </div>
       </section>
 
       <section className="dashboard-top-widgets">
@@ -295,11 +331,6 @@ export default function Dashboard() {
             <div className="summary-item">
               <span className="summary-label">Amigos</span>
               <strong>{friends.length}</strong>
-            </div>
-
-            <div className="summary-item">
-              <span className="summary-label">Mensajes sin leer</span>
-              <strong>{unreadMessages}</strong>
             </div>
           </div>
         </article>

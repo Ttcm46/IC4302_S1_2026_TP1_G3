@@ -41,12 +41,27 @@ function getResourceLabel(type) {
   return 'Documento';
 }
 
+function PdfToggleEditor({ src, title, onPdfClick }) {
+  return (
+    <div className="se-resource-pdf-wrapper">
+      <button type="button" className="btn-primary" onClick={() => onPdfClick(src, title)}>
+        Ver PDF
+      </button>
+      <a href={src} download={title} className="btn-secondary">
+        Descargar PDF
+      </a>
+    </div>
+  );
+}
+
 export default function ManageSectionDetail() {
   const { id, sectionId } = useParams();
   const navigate = useNavigate();
   
   // Manejo de estado
   const [refreshKey, setRefreshKey] = useState(0); // Para forzar refrescos desde el store
+  const [fullscreenImage, setFullscreenImage] = useState(null); // Para modal de imagen en fullscreen
+  const [pdfModal, setPdfModal] = useState({ open: false, src: null, title: null }); // Para modal de PDF
   
   // Formulario de edición de la sección actual
   const [sectionForm, setSectionForm] = useState({ title: '', description: '' });
@@ -61,6 +76,9 @@ export default function ManageSectionDetail() {
   
   const [sectionError, setSectionError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [deletingSectionId, setDeletingSectionId] = useState(false);
+  const [deletingSubtopicId, setDeletingSubtopicId] = useState(null);
+  const [deletingResourceId, setDeletingResourceId] = useState(null);
 
   // Manejo de datos
   const [course, setCourse] = useState(null);
@@ -108,11 +126,11 @@ export default function ManageSectionDetail() {
 
   if (loading) {
     return (
-      <div className="manage-section-page">
+      <div className="se-page">
         <button type="button" className="back-button" onClick={() => navigate(`/courses/${id}/manage`)}>
           ← Volver
         </button>
-        <div className="manage-section-panel empty-manage-state">
+        <div className="se-panel">
           <h1>Cargando sección...</h1>
         </div>
       </div>
@@ -121,11 +139,11 @@ export default function ManageSectionDetail() {
 
   if (!course || !section) {
     return (
-      <div className="manage-section-page">
+      <div className="se-page">
         <button type="button" className="back-button" onClick={() => navigate(`/courses/${id}/manage`)}>
           ← Volver
         </button>
-        <div className="manage-section-panel empty-manage-state">
+        <div className="se-panel">
           <h1>Sección no encontrada</h1>
           <p>Esta sección no existe o fue eliminada.</p>
         </div>
@@ -193,10 +211,12 @@ export default function ManageSectionDetail() {
     }
 
     try {
+      setDeletingSectionId(true);
       await courseService.deleteSection(section.id);
       navigate(`/courses/${id}/manage`);
     } catch {
       setSectionError('No fue posible eliminar la sección.');
+      setDeletingSectionId(false);
     }
   };
 
@@ -241,10 +261,12 @@ export default function ManageSectionDetail() {
     }
 
     try {
+      setDeletingSubtopicId(subtopicId);
       await courseService.deleteSection(subtopicId);
       resetRefresh();
     } catch {
       setSectionError('No fue posible eliminar el subtema.');
+      setDeletingSubtopicId(null);
     }
   };
 
@@ -314,15 +336,17 @@ export default function ManageSectionDetail() {
     }
 
     try {
+      setDeletingResourceId(resourceId);
       await courseService.deleteSectionResource(section.id, resourceId);
       resetRefresh();
     } catch (err) {
       setSectionError(err.response?.data?.message || 'No fue posible eliminar el material.');
+      setDeletingResourceId(null);
     }
   };
 
   /**
-   * renderResourcePreview(resource)
+   * renderResourcePreview(resource, onImageClick)
    * 
    * Qué hace: Renderiza una vista previa del recurso según su tipo.
    * Cómo:
@@ -331,29 +355,39 @@ export default function ManageSectionDetail() {
    *   - image: Etiqueta <img> con fileData
    *   - document: Link para descargar
    */
-  const renderResourcePreview = (resource) => {
+  const renderResourcePreview = (resource, onImageClick) => {
     if (resource.type === 'text') {
-      return <p>{resource.text || 'Sin contenido de texto.'}</p>;
+      return <p className="se-resource-text">{resource.text || 'Sin contenido de texto.'}</p>;
     }
 
     if (resource.type === 'video') {
       if (resource.fileData) {
-        return <video src={resource.fileData} controls className="resource-video" />;
+        return <video src={resource.fileData} controls className="se-resource-video" />;
       }
-
       return (
-        <a href={resource.url} target="_blank" rel="noreferrer" className="resource-link">
+        <a href={resource.url} target="_blank" rel="noreferrer" className="se-resource-link">
           Ver video
         </a>
       );
     }
 
     if (resource.type === 'image') {
-      return <img src={resource.fileData} alt={resource.title} className="resource-image" />;
+      return (
+        <img
+          src={resource.fileData}
+          alt={resource.title}
+          className="se-resource-image clickable"
+          onClick={() => onImageClick(resource.fileData)}
+        />
+      );
     }
 
+    const isPdf = resource.fileData && resource.fileData.startsWith('data:application/pdf');
+    if (isPdf) {
+      return <PdfToggleEditor src={resource.fileData} title={resource.title} onPdfClick={onImageClick} />;
+    }
     return (
-      <a href={resource.fileData} target="_blank" rel="noreferrer" className="resource-link">
+      <a href={resource.fileData} target="_blank" rel="noreferrer" className="se-resource-link">
         Abrir documento
       </a>
     );
@@ -362,24 +396,28 @@ export default function ManageSectionDetail() {
   // Interfaz.
   
   return (
-    <div className="manage-section-page">
+    <div className="se-page">
       <button type="button" className="back-button" onClick={() => navigate(`/courses/${id}/manage`)}>
         ← Volver a secciones del curso
       </button>
 
-      <section className="manage-section-hero">
-        <div>
-          <span className={`course-status-badge ${course.isFinished ? 'finished' : 'draft'}`}>
-            {course.isFinished ? 'Curso terminado' : 'Detalle de sección'}
-          </span>
-          <h1>{section.title}</h1>
-          <p>Curso: {course.name}</p>
-          {course.isFinished ? <p className="finished-notice">Este curso ha terminado. El contenido no se puede modificar.</p> : null}
-        </div>
+      {/* ── Hero ──────────────────────────────────────────── */}
+      <section className="se-hero">
+        <span className={`se-badge ${course.isFinished ? 'finished' : 'active'}`}>
+          {course.isFinished ? 'Curso terminado' : 'Detalle de sección'}
+        </span>
+        <h1>{section.title}</h1>
+        <p>Curso: {course.name}</p>
+        {course.isFinished ? (
+          <p className="se-finished-notice">Este curso ha terminado. El contenido no se puede modificar.</p>
+        ) : null}
       </section>
 
-      <section className="manage-section-grid">
-        <article className="manage-section-panel">
+      {/* ── 3 columnas ────────────────────────────────────── */}
+      <section className="se-layout">
+
+        {/* Columna 1: Descripción del tema */}
+        <article className="se-panel">
           <h2>Descripción del tema/subtema</h2>
           {course.isFinished ? (
             <>
@@ -393,42 +431,45 @@ export default function ManageSectionDetail() {
               </div>
             </>
           ) : (
-          <form className="section-form" onSubmit={handleSectionSave}>
-            <div className="form-group">
-              <label htmlFor="sectionTitle">Nombre</label>
-              <input
-                id="sectionTitle"
-                value={sectionForm.title}
-                onChange={(event) => setSectionForm((prev) => ({ ...prev, title: event.target.value }))}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="sectionDescription">Descripción</label>
-              <textarea
-                id="sectionDescription"
-                value={sectionForm.description}
-                onChange={(event) => setSectionForm((prev) => ({ ...prev, description: event.target.value }))}
-              />
-            </div>
-            {sectionError ? <p className="error-text">{sectionError}</p> : null}
-            <div className="inline-actions">
-              <button type="submit" className="btn-primary">Guardar cambios</button>
-              <button type="button" className="btn-danger" onClick={handleSectionDelete}>Eliminar sección</button>
-            </div>
-          </form>
+            <form className="se-form" onSubmit={handleSectionSave}>
+              <div className="form-group">
+                <label htmlFor="sectionTitle">Nombre</label>
+                <input
+                  id="sectionTitle"
+                  value={sectionForm.title}
+                  onChange={(event) => setSectionForm((prev) => ({ ...prev, title: event.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="sectionDescription">Descripción</label>
+                <textarea
+                  id="sectionDescription"
+                  value={sectionForm.description}
+                  onChange={(event) => setSectionForm((prev) => ({ ...prev, description: event.target.value }))}
+                />
+              </div>
+              {sectionError ? <p className="error-text">{sectionError}</p> : null}
+              <div className="se-actions">
+                <button type="submit" className="btn-primary">Guardar cambios</button>
+                <button type="button" className="se-btn-danger" onClick={handleSectionDelete} disabled={deletingSectionId}>
+                  {deletingSectionId ? 'Eliminando...' : 'Eliminar sección'}
+                </button>
+              </div>
+            </form>
           )}
         </article>
 
-        <article className="manage-section-panel">
+        {/* Columna 2: Subtemas */}
+        <article className="se-panel">
           <h2>Subtemas</h2>
-          <div className="detail-list">
+          <div className="se-list">
             {section.children.length === 0 ? (
-              <p className="muted-copy">No hay subtemas aún.</p>
+              <p className="se-empty">No hay subtemas aún.</p>
             ) : (
               section.children.map((subtopic) => (
-                <div key={subtopic.id} className="detail-item">
+                <div key={subtopic.id} className="se-item">
                   {editingSubtopicId === subtopic.id ? (
-                    <form className="section-form compact-form" onSubmit={saveSubtopicEdit}>
+                    <form className="se-form se-compact-form" onSubmit={saveSubtopicEdit}>
                       <div className="form-group">
                         <label>Nombre</label>
                         <input
@@ -443,7 +484,7 @@ export default function ManageSectionDetail() {
                           onChange={(event) => setEditingSubtopicForm((prev) => ({ ...prev, description: event.target.value }))}
                         />
                       </div>
-                      <div className="inline-actions">
+                      <div className="se-actions">
                         <button type="submit" className="btn-primary">Guardar</button>
                         <button type="button" className="btn-secondary" onClick={() => setEditingSubtopicId(null)}>Cancelar</button>
                       </div>
@@ -453,9 +494,11 @@ export default function ManageSectionDetail() {
                       <h3>{subtopic.title}</h3>
                       <p>{subtopic.description}</p>
                       {!course.isFinished ? (
-                        <div className="inline-actions">
+                        <div className="se-actions">
                           <button type="button" className="btn-secondary" onClick={() => startEditingSubtopic(subtopic)}>Modificar</button>
-                          <button type="button" className="btn-danger" onClick={() => removeSubtopic(subtopic.id)}>Eliminar</button>
+                          <button type="button" className="se-btn-danger" onClick={() => removeSubtopic(subtopic.id)} disabled={deletingSubtopicId === subtopic.id}>
+                            {deletingSubtopicId === subtopic.id ? 'Eliminando...' : 'Eliminar'}
+                          </button>
                         </div>
                       ) : null}
                     </>
@@ -466,16 +509,17 @@ export default function ManageSectionDetail() {
           </div>
         </article>
 
-        <article className="manage-section-panel">
+        {/* Columna 3: Materiales */}
+        <article className="se-panel">
           <h2>Materiales</h2>
-          <div className="detail-list">
+          <div className="se-list">
             {section.resources.length === 0 ? (
-              <p className="muted-copy">No hay materiales en esta sección.</p>
+              <p className="se-empty">No hay materiales en esta sección.</p>
             ) : (
               section.resources.map((resource) => (
-                <div key={resource.id} className="detail-item">
+                <div key={resource.id} className="se-item">
                   {editingResourceId === resource.id ? (
-                    <form className="section-form compact-form" onSubmit={saveResourceEdit}>
+                    <form className="se-form se-compact-form" onSubmit={saveResourceEdit}>
                       <div className="form-group">
                         <label>Título</label>
                         <input
@@ -497,11 +541,7 @@ export default function ManageSectionDetail() {
                       {editingResourceForm.type === 'video' ? (
                         <div className="form-group">
                           <label>Reemplazar video</label>
-                          <input
-                            type="file"
-                            accept="video/*"
-                            onChange={handleResourceFile}
-                          />
+                          <input type="file" accept="video/*" onChange={handleResourceFile} />
                         </div>
                       ) : null}
 
@@ -516,20 +556,29 @@ export default function ManageSectionDetail() {
                         </div>
                       ) : null}
 
-                      <div className="inline-actions">
+                      <div className="se-actions">
                         <button type="submit" className="btn-primary">Guardar</button>
                         <button type="button" className="btn-secondary" onClick={() => setEditingResourceId(null)}>Cancelar</button>
                       </div>
                     </form>
                   ) : (
                     <>
-                      <p className="resource-chip">{getResourceLabel(resource.type)}</p>
+                      <span className="se-chip">{getResourceLabel(resource.type)}</span>
                       <h3>{resource.title}</h3>
-                      {renderResourcePreview(resource)}
+                      {renderResourcePreview(resource, (src, title) => {
+                        const isPdf = src && src.startsWith('data:application/pdf');
+                        if (isPdf) {
+                          setPdfModal({ open: true, src, title });
+                        } else {
+                          setFullscreenImage(src);
+                        }
+                      })}
                       {!course.isFinished ? (
-                        <div className="inline-actions">
+                        <div className="se-actions">
                           <button type="button" className="btn-secondary" onClick={() => startEditingResource(resource)}>Modificar</button>
-                          <button type="button" className="btn-danger" onClick={() => removeResource(resource.id)}>Eliminar</button>
+                          <button type="button" className="se-btn-danger" onClick={() => removeResource(resource.id)} disabled={deletingResourceId === resource.id}>
+                            {deletingResourceId === resource.id ? 'Eliminando...' : 'Eliminar'}
+                          </button>
                         </div>
                       ) : null}
                     </>
@@ -539,7 +588,28 @@ export default function ManageSectionDetail() {
             )}
           </div>
         </article>
+
       </section>
+
+      {/* ── Modal fullscreen imagen ────────────────────────── */}
+      {fullscreenImage && (
+        <div className="se-fullscreen-backdrop" onClick={() => setFullscreenImage(null)}>
+          <div className="se-fullscreen-inner" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="se-fullscreen-close" onClick={() => setFullscreenImage(null)}>×</button>
+            <img src={fullscreenImage} alt="Vista completa" className="se-fullscreen-img" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal PDF ─────────────────────────────────────── */}
+      {pdfModal.open && (
+        <div className="se-pdf-modal" onClick={() => setPdfModal({ open: false, src: null, title: null })}>
+          <div className="se-pdf-modal-container" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="se-pdf-modal-close" onClick={() => setPdfModal({ open: false, src: null, title: null })}>×</button>
+            <iframe src={pdfModal.src} title={pdfModal.title} className="se-pdf-modal-iframe" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

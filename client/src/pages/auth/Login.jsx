@@ -81,6 +81,7 @@ export default function Login() {
         accessToken: response.data.accessToken,
         refreshToken: response.data.refreshToken,
         user: response.data.user,
+        rememberMe: formData.rememberMe,
       });
 
       navigate('/dashboard');

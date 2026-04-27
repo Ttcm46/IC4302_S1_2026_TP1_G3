@@ -387,7 +387,6 @@
 
 @media (max-width: 900px) {
   .manage-course-hero,
-  .manage-course-layout,
   .assessments-creation-layout,
   .assessment-dates-row {
     grid-template-columns: 1fr;
@@ -405,6 +404,12 @@
     min-height: unset;
     max-height: unset;
     overflow-y: visible;
+  }
+}
+
+@media (max-width: 640px) {
+  .manage-course-layout {
+    grid-template-columns: 1fr;
   }
 }
 

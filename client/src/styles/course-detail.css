@@ -191,6 +191,17 @@
   font-weight: 500;
 }
 
+.finished-note {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.9rem;
+  border-radius: 0.3rem;
+  margin-bottom: 1rem;
+  border: 1px solid #f5c6cb;
+  text-align: center;
+  font-weight: 500;
+}
+
 .contact-btn {
   width: 100%;
 }

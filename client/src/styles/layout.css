@@ -54,6 +54,21 @@
   color: white;
 }
 
+/**
+ * CAMBIO: Estilo para link de admin
+ * 
+ * Propósito: Link de Registros tiene mismo estilo que otros elementos
+ */
+.navbar a.admin-link {
+  color: var(--text);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.navbar a.admin-link:hover {
+  color: var(--primary);
+}
+
 /* Main Content */
 .main-content {
   flex: 1;

@@ -4,6 +4,16 @@ import { userService } from '../services/auth';
 import { getSessionUser, setSession, getAccessToken, getRefreshToken } from '../services/session';
 import '../styles/profile.css';
 
+function toInputDate(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const y = parsed.getUTCFullYear();
+  const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(parsed.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function formatDate(value) {
   if (!value) return 'No definida';
   const parsed = new Date(value);
@@ -29,7 +39,7 @@ export default function Profile() {
   const [formData, setFormData] = useState({
     username: initialUser.username || '',
     fullName: initialUser.fullName || '',
-    dateOfBirth: initialUser.dateOfBirth || '',
+    dateOfBirth: toInputDate(initialUser.dateOfBirth),
     avatar: initialUser.avatar || ''
   });
 
@@ -79,7 +89,7 @@ export default function Profile() {
       setFormData({
         username: updatedUser.username || '',
         fullName: updatedUser.fullName || '',
-        dateOfBirth: updatedUser.dateOfBirth || '',
+        dateOfBirth: toInputDate(updatedUser.dateOfBirth),
         avatar: updatedUser.avatar || ''
       });
       setIsEditing(false);
@@ -93,7 +103,7 @@ export default function Profile() {
     setFormData({
       username: user.username || '',
       fullName: user.fullName || '',
-      dateOfBirth: user.dateOfBirth || '',
+      dateOfBirth: toInputDate(user.dateOfBirth),
       avatar: user.avatar || ''
     });
     setIsEditing(false);
@@ -160,6 +170,11 @@ export default function Profile() {
           </div>
         ) : (
           <div className="profile-info">
+            <div className="profile-row">
+              <span className="label">ID de usuario</span>
+              <strong className="muted" style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>{user.id || 'No disponible'}</strong>
+            </div>
+
             <div className="profile-row">
               <span className="label">User name</span>
               <strong>{user.username || 'No definido'}</strong>

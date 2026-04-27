@@ -181,9 +181,13 @@ export async function deleteSection(driver, sectionId) {
 export async function deleteClass(driver, classCode) {
   const session = driver.session();
   try {
+    // Cascade delete: elimina el curso, sus evaluaciones (y los SUBMITTED de estudiantes),
+    // sus secciones, y todas las relaciones (incluyendo HAS_STUDENT).
     await session.run(
       `MATCH (c:Class {classCode: $classCode})
-       DETACH DELETE c`,
+       OPTIONAL MATCH (c)-[:HAS_EVALUATION]->(e:Evaluation)
+       OPTIONAL MATCH (c)-[:HAS_SECTION]->(s:Section)
+       DETACH DELETE c, e, s`,
       { classCode },
     );
   } finally {
@@ -498,7 +502,6 @@ export async function cloneClass(driver, sourceClassCode, newClassCode, newData,
     // 2. Crea nuevo nodo Class con metadatos proporcionados
     // 3. NO copia evaluaciones (deben recalibrarse en nuevo contexto)
     
-    console.log('[cloneClass] Starting clone: source=', sourceClassCode, 'new=', newClassCode, 'creatorId=', creatorId);
     
     // Paso 1: Obtener todas las secciones y recursos del original
     const sourceData = await session.run(
@@ -591,14 +594,142 @@ export async function getAllClasses(driver) {
 export async function getCreatedClasses(driver, creatorId) {
   const session = driver.session();
   try {
-    console.log('[getCreatedClasses] Querying Neo4j for classes with creatorId:', creatorId);
     const result = await session.run(
       `MATCH (c:Class {creatorId: $creatorId})
        RETURN c`,
       { creatorId },
     );
-    console.log('[getCreatedClasses] Query result count:', result.records.length);
     return result.records.map((record) => record.get("c").properties);
+  } finally {
+    await session.close();
+  }
+}
+
+// ============================================================================
+// SUBMISSIONS / GRADES
+// ============================================================================
+
+/**
+ * Submit or update a student's evaluation result in Neo4j.
+ * Creates/updates a SUBMITTED relationship between Student and Evaluation.
+ * @param {neo4j.Driver} driver
+ * @param {Object} submission - { userId, username, courseId, evalId, assessmentTitle, score, correctAnswers, totalQuestions, questionResults, submittedAt }
+ */
+export async function submitEvaluation(driver, submission) {
+  const session = driver.session();
+  try {
+    const questionResultsStr = typeof submission.questionResults === 'string'
+      ? submission.questionResults
+      : JSON.stringify(submission.questionResults || []);
+
+    await session.run(
+      `MERGE (s:Student {studentId: $userId})
+       WITH s
+       MATCH (e:Evaluation {evalId: $evalId})
+       MERGE (s)-[sub:SUBMITTED {evalId: $evalId, courseId: $courseId}]->(e)
+       SET sub.userId = $userId,
+           sub.username = $username,
+           sub.courseId = $courseId,
+           sub.evalId = $evalId,
+           sub.assessmentTitle = $assessmentTitle,
+           sub.score = $score,
+           sub.correctAnswers = $correctAnswers,
+           sub.totalQuestions = $totalQuestions,
+           sub.questionResults = $questionResults,
+           sub.submittedAt = $submittedAt`,
+      {
+        userId: String(submission.userId),
+        username: String(submission.username || submission.userId),
+        courseId: String(submission.courseId),
+        evalId: String(submission.evalId),
+        assessmentTitle: submission.assessmentTitle || '',
+        score: submission.score ?? 0,
+        correctAnswers: submission.correctAnswers ?? 0,
+        totalQuestions: submission.totalQuestions ?? 0,
+        questionResults: questionResultsStr,
+        submittedAt: submission.submittedAt || new Date().toISOString()
+      }
+    );
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Get a student's submission for a specific evaluation.
+ * @param {neo4j.Driver} driver
+ * @param {string} evalId - Evaluation ID
+ * @param {string} userId - Student ID
+ * @returns {Promise<Object|null>}
+ */
+export async function getEvaluationResult(driver, evalId, userId) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (s:Student {studentId: $userId})-[sub:SUBMITTED]->(e:Evaluation {evalId: $evalId})
+       RETURN sub`,
+      { userId, evalId }
+    );
+    if (result.records.length === 0) return null;
+    const sub = result.records[0].get('sub').properties;
+    return {
+      ...sub,
+      questionResults: sub.questionResults ? JSON.parse(sub.questionResults) : []
+    };
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Get all submissions for a specific evaluation (for professors).
+ * @param {neo4j.Driver} driver
+ * @param {string} evalId - Evaluation ID
+ * @returns {Promise<Array>}
+ */
+export async function getEvaluationSubmissions(driver, evalId) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (s:Student)-[sub:SUBMITTED]->(e:Evaluation {evalId: $evalId})
+       RETURN sub`,
+      { evalId }
+    );
+    return result.records.map(record => {
+      const sub = record.get('sub').properties;
+      return {
+        ...sub,
+        questionResults: sub.questionResults ? JSON.parse(sub.questionResults) : []
+      };
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Get all submissions by a student across all evaluations in a course.
+ * @param {neo4j.Driver} driver
+ * @param {string} courseId - Course class code
+ * @param {string} userId - Student ID
+ * @returns {Promise<Array>}
+ */
+export async function getCourseSubmissionsForUser(driver, courseId, userId) {
+  const session = driver.session();
+  try {
+    const result = await session.run(
+      `MATCH (s:Student {studentId: $userId})-[sub:SUBMITTED]->(e:Evaluation)
+       WHERE sub.courseId = $courseId
+       RETURN sub`,
+      { userId, courseId }
+    );
+    return result.records.map(record => {
+      const sub = record.get('sub').properties;
+      return {
+        ...sub,
+        questionResults: sub.questionResults ? JSON.parse(sub.questionResults) : []
+      };
+    });
   } finally {
     await session.close();
   }

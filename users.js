@@ -83,10 +83,22 @@ async function searchUser(query,store) {
 async function ValidateUser(query,store) {
   const session = store.openSession();
   const user = await session.query({ collection: "@empty" }).search("username", query.username).firstOrNull();
+  
+  // If user not found, return generic error but include userFound flag for internal tracking
+  if (!user) {
+    return { 
+      success: false, 
+      message: "Invalid username or password",
+      userFound: false  // For internal use only - server must NOT send this to client
+    };
+  }
+  
   const tmp = crypto.createHash("sha256").update(query.password + user.salt).digest("hex");
   if (tmp == user.password) {
-    return { success: true, 
+    return { 
+      success: true, 
       message: `Welcome ${user.name}`,
+      userFound: true,
       user: {
         name: user.name,
         username: user.username,  
@@ -95,9 +107,16 @@ async function ValidateUser(query,store) {
         typeofuser: user.typeofuser,
         correo: user.correo,
         id: user.id}
-     };
+    };
   } else {
-    return { success: false, message: "Invalid username or password", user: user, uid: user.id };
+    // Password incorrect - return user for internal tracking, but don't send to client
+    return { 
+      success: false, 
+      message: "Invalid username or password",
+      userFound: true,  // For internal use only
+      user: user,
+      uid: user.id
+    };
   }
 };
 async function getUser(username,store) {
@@ -167,4 +186,162 @@ async function addFriend(userId, friendId, store) {
   return { success: true, message: "Friend added successfully" };
 }
 
-export { RDBinitializeStore, CreateUser ,searchUserById, searchUser, ValidateUser, getUser, updateUser, loadUser, getFriends, addFriend};
+async function removeFriend(userId, friendId, store) {
+  const session = store.openSession();
+  const user = await session.load(userId);
+  const friend = await session.load(friendId);
+
+  if (!user || !friend) {
+    return { success: false, message: "User not found" };
+  }
+
+  if (user.friends) user.friends = user.friends.filter((id) => id !== friendId);
+  if (friend.friends) friend.friends = friend.friends.filter((id) => id !== userId);
+
+  await session.saveChanges();
+  return { success: true, message: "Friend removed successfully" };
+}
+
+async function sendFriendRequest(userId, friendId, store) {
+  const session = store.openSession();
+  const user = await session.load(userId);
+  const friend = await session.load(friendId);
+
+  if (!user || !friend) {
+    return { success: false, message: "User or friend not found" };
+  }
+
+  if (!friend.friendRequests) friend.friendRequests = [];
+  if (!user.friends) user.friends = [];
+  if (!friend.friends) friend.friends = [];
+
+  if (user.friends.includes(friendId) || friend.friends.includes(userId)) {
+    return { success: false, message: "Already friends" };
+  }
+
+  if (!user.sentRequests) user.sentRequests = [];
+
+  if (!friend.friendRequests.includes(userId)) {
+    friend.friendRequests.push(userId);
+  }
+  if (!user.sentRequests.includes(friendId)) {
+    user.sentRequests.push(friendId);
+  }
+
+  await session.saveChanges();
+  return { success: true, message: "Friend request sent" };
+}
+
+async function getPendingRequests(userId, store) {
+  const session = store.openSession();
+  const user = await session.load(userId);
+  if (!user) {
+    return { success: false, message: "User not found" };
+  }
+  return { success: true, requests: user.friendRequests || [] };
+}
+
+async function acceptFriendRequest(userId, fromUserId, store) {
+  const session = store.openSession();
+  const user = await session.load(userId);
+  const from = await session.load(fromUserId);
+
+  if (!user || !from) {
+    return { success: false, message: "User not found" };
+  }
+
+  if (!user.friends) user.friends = [];
+  if (!from.friends) from.friends = [];
+  if (!user.friendRequests) user.friendRequests = [];
+
+  user.friendRequests = user.friendRequests.filter((id) => id !== fromUserId);
+  if (from.sentRequests) from.sentRequests = from.sentRequests.filter((id) => id !== userId);
+
+  if (!user.friends.includes(fromUserId)) user.friends.push(fromUserId);
+  if (!from.friends.includes(userId)) from.friends.push(userId);
+
+  await session.saveChanges();
+  return { success: true, message: "Friend request accepted" };
+}
+
+async function rejectFriendRequest(userId, fromUserId, store) {
+  const session = store.openSession();
+  const user = await session.load(userId);
+  const from = await session.load(fromUserId);
+
+  if (!user) {
+    return { success: false, message: "User not found" };
+  }
+
+  if (!user.friendRequests) user.friendRequests = [];
+  user.friendRequests = user.friendRequests.filter((id) => id !== fromUserId);
+  if (from && from.sentRequests) from.sentRequests = from.sentRequests.filter((id) => id !== userId);
+
+  await session.saveChanges();
+  return { success: true, message: "Friend request rejected" };
+}
+
+async function getSentRequests(userId, store) {
+  const session = store.openSession();
+  const user = await session.load(userId);
+  if (!user) {
+    return { success: false, message: "User not found" };
+  }
+  return { success: true, requests: user.sentRequests || [] };
+}
+
+// Verifica si un username ya existe
+async function checkUsernameExists(username, store) {
+  if (!username || !store) return false;
+  const session = store.openSession();
+  try {
+    const users = await session.query({ collection: "@empty" }).all();
+    const exists = users.some(u => u.username && u.username.toLowerCase() === username.toLowerCase());
+    return exists;
+  } catch (error) {
+    console.error('[checkUsernameExists] Error:', error);
+    return false;
+  } finally {
+    session.dispose();
+  }
+}
+
+// Verifica si un email ya existe
+async function checkEmailExists(email, store) {
+  if (!email || !store) return false;
+  const session = store.openSession();
+  try {
+    const users = await session.query({ collection: "@empty" }).all();
+    const exists = users.some(u => u.correo && u.correo.toLowerCase() === email.toLowerCase());
+    return exists;
+  } catch (error) {
+    console.error('[checkEmailExists] Error:', error);
+    return false;
+  } finally {
+    session.dispose();
+  }
+}
+
+// Busca y devuelve el documento de usuario cuyo campo 'correo' coincida con el email
+// proporcionado (comparación case-insensitive). Devuelve null si no existe.
+// Usada en POST /users/reset para verificar que el correo pertenece a una cuenta
+// registrada antes de generar el token de recuperación.
+async function getUserByEmail(email, store) {
+  if (!email || !store) return null;
+  const session = store.openSession();
+  try {
+    const users = await session.query({ collection: "@empty" }).all();
+    return users.find(u => u.correo && u.correo.toLowerCase() === email.toLowerCase()) || null;
+  } catch (error) {
+    console.error('[getUserByEmail] Error:', error);
+    return null;
+  } finally {
+    session.dispose();
+  }
+}
+// se ocupa modificar porque el sistema de mensajes necesita 
+// el username del destinatario para mostrarlo en la interfaz, 
+// pero el token solo tiene el id. Entonces se hace una consulta 
+// para obtener el username a partir del id antes de enviar el 
+// mensaje.
+export { RDBinitializeStore, CreateUser, searchUserById, searchUser, ValidateUser, getUser, updateUser, loadUser, getFriends, addFriend, removeFriend, sendFriendRequest, getPendingRequests, getSentRequests, acceptFriendRequest, rejectFriendRequest, checkUsernameExists, checkEmailExists, getUserByEmail };

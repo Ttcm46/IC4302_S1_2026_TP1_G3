@@ -16,7 +16,17 @@ import {
   loadUser,
   getFriends,
   addFriend,
+  removeFriend,
+  sendFriendRequest,
+  getPendingRequests,
+  getSentRequests,
+  acceptFriendRequest,
+  rejectFriendRequest,
+  checkUsernameExists,
+  checkEmailExists,
+  getUserByEmail,
 } from "./users.js";
+import { validatePassword } from "./passwordValidation.js";
 import { RedisinitializeStore } from "./redisStore.js";
 import {
   connectToNeo4j,
@@ -40,7 +50,11 @@ import {
   getAllClasses,
   sendSampleData,
   getEnrolledClasses,
-  getCreatedClasses
+  getCreatedClasses,
+  submitEvaluation,
+  getEvaluationResult,
+  getEvaluationSubmissions,
+  getCourseSubmissionsForUser
 
 } from "./clases.js";
 import {
@@ -50,7 +64,7 @@ import {
 } from "./accessLogs.js";
 import { MailpitClientStarter, sendEmail } from "./mailpit.js";
 import { get } from "http";
-import { createMessage, getInboxMessages, getConversationMessages } from "./messages.js";
+import { createMessage, getInboxMessages, getConversationMessages, clearAllMessages, markMessagesAsRead, getUnreadCount } from "./messages.js";
 
 dotenv.config();
 //constantes de cleintes de acceso de BD para reciclarlos segun se necesite
@@ -67,7 +81,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
-// Global error handler middleware
+// CONFIGURACIÓN: Decirle a Express que confíe en los proxies
+// Esto hace que req.ip lea correctamente desde headers X-Forwarded-For
+// En desarrollo: seguirá siendo ::1
+// En producción: será la IP real del cliente
+app.set('trust proxy', 1);
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err.message);
   res.status(500).json({
@@ -111,7 +129,7 @@ app.get("/", (req, res) => {
         "GET /users/courses?id=ID",
         "GET /users/details?userId=ID",
       ],
-      login: ["GET /login", "GET /logout"],
+      login: ["POST /login", "POST /logout"],
       courses: [
         "POST /courses/create",
         "POST /courses/section?classCode=CODE",
@@ -147,23 +165,69 @@ app.get("/", (req, res) => {
 //DONE:
 app.post("/users/create", async (req, res) => {
   try {
+    const username = req.body.username?.trim();
+    const email = req.body.correo?.trim();
+    const password = req.body.password;
+    
+    // Validar que username y email no estén vacíos
+    if (!username || !email) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "El usuario y correo electrónico son requeridos" 
+      });
+    }
+
+    // Validar política de contraseña (CRÍTICO)
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: "La contraseña no cumple con la política de seguridad. Requisitos: " + 
+               passwordValidation.errors.join(", ")
+      });
+    }
+
+    // Verificar si el username ya existe
+    const usernameAlreadyExists = await checkUsernameExists(username, store);
+    if (usernameAlreadyExists) {
+      console.log('[/users/create] Username duplicado detectado');
+      return res.status(409).json({ 
+        success: false, 
+        error: `El usuario "${username}" ya está registrado en el sistema` 
+      });
+    }
+
+    // Verificar si el email ya existe
+    const emailAlreadyExists = await checkEmailExists(email, store);
+    if (emailAlreadyExists) {
+      console.log('[/users/create] Email duplicado detectado');
+      return res.status(409).json({ 
+        success: false, 
+        error: `El correo "${email}" ya está registrado en el sistema` 
+      });
+    }
+
+    // Si no hay duplicados, crear el usuario
     const data = await CreateUser(req.body, store);
     if (!data) {
-      return res.status(400).json({ success: false, message: "User creation failed" });
+      return res.status(400).json({ success: false, error: "No se pudo crear el usuario" });
     }
     res.json({ message: "User created successfully", data: data });
   } catch (error) {
     console.error("Error creating user:", error.message);
+    console.error("[/users/create] EXCEPTION:", error.message);
+    console.error("[/users/create] Stack:", error.stack);
     res.status(500).json({
       success: false,
       message: "Failed to create user. Please try again.",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: "Error interno al crear el usuario: " + error.message
     });
   }
 });
 
 //DONE: password reset
-app.post("/users/reset", async (req, res) => {
+/* Se reemplazó esta parte para integrar la forma de recuperar contraseña del frontend
+  app.post("/users/reset", async (req, res) => {
   let tmp = await getUser(req.body.username, store);
   if (!tmp) {
     return res.json({ success: false, message: "User not found" });
@@ -184,13 +248,163 @@ app.post("/users/reset", async (req, res) => {
   res.json({
     message: "Password reset successful, you temporal pass word is ",
     temporaryPassword: tmppass,
-  });
+  });*/
+
+app.post("/users/reset", async (req, res) => {
+  const email = req.body.email?.trim();
+  if (!email) {
+    return res.status(400).json({ success: false, message: "Correo requerido." });
+  }
+
+  try {
+    const user = await getUserByEmail(email, store);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "No existe una cuenta registrada con ese correo." });
+    }
+
+    // Generar token criptográficamente seguro
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const redisKey = `resetToken:${resetToken}`;
+    const TTL = 5 * 60; // 5 minutos
+
+    // Guardar en Redis: token → {userId, email}, con expiración de 1 hora
+    await RDclient.set(redisKey, JSON.stringify({ userId: user.id, email: user.correo }), { EX: TTL });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    sendEmail(
+      MPClient,
+      user.correo,
+      null,
+      "Recuperación de contraseña - TecDigitalito",
+      `Hola ${user.name || user.username},\n\nRecibimos una solicitud para restablecer tu contraseña.\n\nHaz clic en el siguiente enlace (válido por 5 minutos):\n\n${resetLink}\n\nSi no solicitaste esto, ignora este correo. Tu contraseña no será cambiada.`
+    );
+
+    res.json({ success: true, message: "Se ha enviado un enlace de recuperación a tu correo." });
+  } catch (error) {
+    console.error("Error in /users/reset:", error);
+    res.status(500).json({ success: false, message: "Error al procesar la solicitud." });
+  }
 });
-//DONE: update password                   TEST: untested
-app.put("/users/update/password", (req, res) => {
-  updateUser(req.query.id, { password: req.body.newpassword }, store);
-  sendEmail(MPClient, null, null, "Contraseña Reestablecida", `Su contraseña ha sido reestablecida`)
-  res.json({ message: "Password updated successfully" });
+
+// Confirmar restablecimiento de contraseña con token de un solo uso
+app.post("/users/reset/confirm", async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ success: false, message: "Token y nueva contraseña son requeridos." });
+  }
+
+  // Validar política de contraseña
+  const passwordValidation = validatePassword(newPassword);
+  if (!passwordValidation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: "La contraseña no cumple con la política de seguridad. Requisitos: " +
+               passwordValidation.errors.join(", ")
+    });
+  }
+
+  try {
+    const redisKey = `resetToken:${token}`;
+    const raw = await RDclient.get(redisKey);
+
+    if (!raw) {
+      return res.status(400).json({ success: false, message: "El enlace es inválido o ha expirado." });
+    }
+
+    const { userId, email } = JSON.parse(raw);
+
+    // Actualizar la contraseña en RavenDB
+    await updateUser(userId, { password: newPassword }, store);
+
+    // Invalidar el token (uso único)
+    await RDclient.del(redisKey);
+
+    // Invalidar sesiones activas del usuario
+    const sessionToken = crypto.createHash('sha256').update(userId).digest('hex');
+    await RDclient.del(sessionToken);
+
+    sendEmail(
+      MPClient,
+      email,
+      null,
+      "Contraseña restablecida - TecDigitalito",
+      "Tu contraseña ha sido restablecida exitosamente. Si no realizaste este cambio, contacta al soporte."
+    );
+
+    res.json({ success: true, message: "Contraseña restablecida correctamente. Ya puedes iniciar sesión." });
+  } catch (error) {
+    console.error("Error in /users/reset/confirm:", error);
+    res.status(500).json({ success: false, message: "Error al restablecer la contraseña." });
+  }
+});
+//DONE: update password
+/**
+ * CAMBIO EN ENDPOINT: PUT /users/update/password
+ * 
+ * Antes no validaba la contraseña
+ * Ahora valida que cumpla con la política de seguridad
+ * 
+ * Validaciones:
+ * - Mínimo 8 caracteres
+ * - Al menos 1 mayúscula
+ * - Al menos 1 minúscula  
+ * - Al menos 1 número
+ * - Al menos 1 símbolo especial
+ */
+app.put("/users/update/password", async (req, res) => {
+  try {
+    const userId = req.query.id;
+    const newPassword = req.body.newpassword;
+
+    // Validación básica
+    if (!userId || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID y nueva contraseña son requeridos"
+      });
+    }
+
+    // Validar política de contraseña
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: "La contraseña no cumple con la política de seguridad. Requisitos: " +
+               passwordValidation.errors.join(", ")
+      });
+    }
+
+    // Actualizar contraseña
+    await updateUser(userId, { password: newPassword }, store);
+
+    // Enviar email de confirmación
+    try {
+      const user = await loadUser(userId, store);
+      sendEmail(
+        MPClient,
+        user.data.correo,
+        null,
+        "Contraseña Actualizada - TecDigitalito",
+        `Hola ${user.data.name},\n\nTu contraseña ha sido actualizada exitosamente. Si no realizaste este cambio, contacta al soporte.`
+      );
+    } catch (emailError) {
+      console.error("Error enviando email de confirmación:", emailError.message);
+      // No retornar error, la contraseña ya se actualizó
+    }
+
+    res.json({
+      success: true,
+      message: "Contraseña actualizada exitosamente"
+    });
+  } catch (error) {
+    console.error("Error updating password:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Error al actualizar la contraseña: " + error.message
+    });
+  }
 });
 
 //DONE:
@@ -222,6 +436,317 @@ app.get("/users/log", async (req, res) => {
 
   res.json({ message: `Login history for user ID: ${req.query.id}` });
 });
+
+/**
+ * NUEVO ENDPOINT: GET /admin/logs
+ * 
+ * Propósito: Traer todos los registros de auditoría del sistema
+ * Requiere: Usuario con rol "admin" y sesión válida
+ * 
+ * Parámetros query opcionales:
+ * - page: número de página (default 1)
+ * - limit: resultados por página (default 50)
+ * - userId: filtrar por ID de usuario específico
+ * - action: filtrar por acción (login/logout)
+ * - successful: filtrar por estado (true/false)
+ * 
+ * Cambios vs código anterior:
+ * - NUEVO: Este endpoint no existía
+ * - Agrega protección de rol admin
+ * - Implementa paginación
+ * - Implementa filtros
+ */
+app.get("/admin/logs", async (req, res) => {
+  try {
+    // Validación de autenticación
+    // Se extrae el token de la cookie o header
+    // En código actual: no hay validación de admin
+    const token = req.cookies.accessToken || req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "No autenticado. Se requiere token de sesión."
+      });
+    }
+
+    // Validar que sea admin en Redis
+    // Busca la sesión del token en Redis para verificar que el usuario es admin
+    let adminUser = null;
+    try {
+      const sessionData = await RDclient.get(token);
+      if (sessionData) {
+        const parsed = JSON.parse(sessionData);
+        if (parsed.user && parsed.user.id) {
+          // Cargar usuario de RavenDB para verificar su rol
+          const userResult = await loadUser(parsed.user.id, store);
+          if (userResult.data && userResult.data.typeofuser === "admin") {
+            adminUser = userResult.data;
+          }
+        }
+      }
+    } catch (tokenError) {
+      console.error("[/admin/logs] Error verificando admin:", tokenError.message);
+    }
+
+    if (!adminUser) {
+      return res.status(403).json({
+        success: false,
+        message: "Acceso denegado. Se requiere rol de administrador."
+      });
+    }
+
+    // CAMBIO 3: Obtener parámetros de paginación y filtros
+    // En código actual: no hay paginación, solo traía 1 usuario
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    // CAMBIO 4: Construir query de filtros
+    const query = {};
+    if (req.query.userId) query.userId = req.query.userId;
+    if (req.query.action) query.action = req.query.action; // "login" o "logout"
+    if (req.query.successful !== undefined) query.successful = req.query.successful === 'true';
+
+    // CAMBIO 5: Importar modelo de AccessLog
+    const { AccessLog } = await import('./accessLogs.js');
+    
+    // CAMBIO 6: Ejecutar query con paginación
+    const logs = await AccessLog
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skip)
+      .exec();
+
+    // CAMBIO 7: Contar total de registros para paginación
+    const total = await AccessLog.countDocuments(query);
+
+    // CAMBIO 8: Retornar respuesta paginada
+    res.json({
+      success: true,
+      message: "Registros de auditoría del sistema",
+      data: {
+        logs,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("[/admin/logs] Error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Error al obtener registros de auditoría",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * NUEVO ENDPOINT: POST /admin/create
+ * 
+ * Propósito: Crear un usuario con rol de administrador
+ * 
+ * SEGURIDAD IMPORTANTE:
+ * - Si NO hay admins en el sistema: permite crear el primer admin SIN autenticación
+ * - Si YA hay admins: requiere que usuario sea admin autenticado
+ * 
+ * Body requerido:
+ * {
+ *   "username": "admin",
+ *   "email": "admin@example.com",
+ *   "password": "Admin@1234",
+ *   "fullName": "Administrador del Sistema",
+ *   "dateOfBirth": "1990-01-01"
+ * }
+ * 
+ * Cambios vs código anterior:
+ * - NUEVO: Este endpoint no existía
+ * - Implementa lógica de "primer admin"
+ * - Valida política de contraseña
+ * - Verifica existencia de admin previo
+ * - Requiere autenticación si ya hay admin
+ */
+app.post("/admin/create", async (req, res) => {
+  try {
+    console.log("[/admin/create] Intento de crear usuario admin");
+
+    // PASO 1: Verificar si ya existe algún admin en el sistema
+    // Busca en RavenDB cualquier usuario con typeofuser === "admin"
+    const session = store.openSession();
+    const existingAdmin = await session.query({ collection: "user" })
+      .search("typeofuser", "admin")
+      .firstOrNull();
+    
+    // PASO 2: Si ya existe admin, validar autenticación
+    // El nuevo admin solo puede ser creado por un admin ya existente
+    if (existingAdmin) {
+      console.log("[/admin/create] Ya existe admin en el sistema, requiere autenticación");
+      
+      // Obtener token del request
+      const token = req.cookies.accessToken || req.headers.authorization?.split(' ')[1];
+      
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          error: "Autenticación requerida. Solo un admin puede crear otro admin."
+        });
+      }
+
+      // Validar que el usuario autenticado es admin
+      try {
+        const sessionData = await RDclient.get(token);
+        if (!sessionData) {
+          return res.status(401).json({
+            success: false,
+            error: "Sesión inválida o expirada."
+          });
+        }
+
+        const parsed = JSON.parse(sessionData);
+        if (!parsed.user || !parsed.user.id) {
+          return res.status(403).json({
+            success: false,
+            error: "Acceso denegado. Se requiere ser administrador."
+          });
+        }
+
+        // Cargar usuario de RavenDB para verificar que es admin
+        const sessionForAuth = store.openSession();
+        const authUser = await sessionForAuth.load(parsed.user.id);
+        
+        if (!authUser || authUser.typeofuser !== "admin") {
+          return res.status(403).json({
+            success: false,
+            error: "Acceso denegado. Solo administradores pueden crear otros administradores."
+          });
+        }
+      } catch (tokenError) {
+        console.error("[/admin/create] Error validando token:", tokenError.message);
+        return res.status(401).json({
+          success: false,
+          error: "Error al validar autenticación."
+        });
+      }
+    } else {
+      console.log("[/admin/create] No existe admin en el sistema - permitiendo crear primer admin");
+    }
+
+    // PASO 3: Validar datos requeridos
+    const username = req.body.username?.trim();
+    const email = req.body.correo?.trim() || req.body.email?.trim();
+    const password = req.body.password;
+    const fullName = req.body.fullName?.trim() || req.body.name?.trim();
+    const dateOfBirth = req.body.dateOfBirth || req.body.dob;
+
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Username, email y password son requeridos."
+      });
+    }
+
+    // PASO 4: Validar política de contraseña
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: "La contraseña no cumple con la política de seguridad. Requisitos: " +
+               passwordValidation.errors.join(", ")
+      });
+    }
+
+    // PASO 5: Verificar que username no esté duplicado
+    const usernameExists = await checkUsernameExists(username, store);
+    if (usernameExists) {
+      console.log("[/admin/create] Username duplicado:", username);
+      return res.status(409).json({
+        success: false,
+        error: `El usuario "${username}" ya está registrado en el sistema`
+      });
+    }
+
+    // PASO 6: Verificar que email no esté duplicado
+    const emailExists = await checkEmailExists(email, store);
+    if (emailExists) {
+      console.log("[/admin/create] Email duplicado:", email);
+      return res.status(409).json({
+        success: false,
+        error: `El correo "${email}" ya está registrado en el sistema`
+      });
+    }
+
+    // PASO 7: Crear el usuario admin
+    const userData = {
+      username,
+      password,
+      correo: email,
+      name: fullName || username,
+      dob: dateOfBirth,
+      typeofuser: "admin", // IMPORTANTE: Especificar role admin
+      picPath: req.body.picPath || req.body.avatar || null
+    };
+
+    const newAdmin = await CreateUser(userData, store);
+    if (!newAdmin) {
+      return res.status(400).json({
+        success: false,
+        error: "No se pudo crear el usuario administrador"
+      });
+    }
+
+    // PASO 8: Log de auditoría - crear admin
+    console.log(`[/admin/create] Admin creado exitosamente: ${username} (${email})`);
+    
+    createAccessLog({
+      ip: req.ip,
+      userIdOrToken: newAdmin.id,
+      action: 'admin_created',
+      device: getDeviceInfo(req),
+      successful: true
+    });
+
+    // PASO 9: Enviar email de confirmación al nuevo admin
+    try {
+      sendEmail(
+        MPClient,
+        email,
+        null,
+        "Cuenta de Administrador Creada - TecDigitalito",
+        `¡Hola ${fullName || username}!\n\nTu cuenta de administrador ha sido creada exitosamente en TecDigitalito.\n\nUsername: ${username}\nEmail: ${email}\n\nPuedes acceder al panel de administración en: /admin/logs\n\n¡Bienvenido al equipo de administración!`
+      );
+    } catch (emailError) {
+      console.error("[/admin/create] Error enviando email:", emailError.message);
+      // No retornar error, el admin ya fue creado
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Administrador creado exitosamente",
+      data: {
+        id: newAdmin.id,
+        username: newAdmin.username,
+        email: newAdmin.correo,
+        role: newAdmin.typeofuser,
+        name: newAdmin.name
+      }
+    });
+
+  } catch (error) {
+    console.error("[/admin/create] ❌ Error:", error.message);
+    console.error("[/admin/create] Stack:", error.stack);
+    res.status(500).json({
+      success: false,
+      error: "Error interno al crear el administrador: " + error.message
+    });
+  }
+});
+
 //TEST:
 app.post("/users/role", (req, res) => {
   // Logic to assign a role to a user
@@ -236,49 +761,93 @@ app.get("/users/role", async (req, res) => {
 });
 //TODO:
 app.post("/users/friends/request", async (req, res) => {
-  const userId = req.query.id;
-  const friendId = req.body.id;
+  // Tuve que cambiarlo un poco para que funcione con el frontend, pero la lógica es la misma, 
+  // solo que ahora acepta tanto query params como body params para mayor flexibilidad
+  const userId = req.body.userId || req.query.id;
+  const friendId = req.body.friendId || req.body.id;
 
   if (!userId || !friendId) {
     return res.status(400).json({ message: "Missing userId or friendId" });
   }
 
-  const result = await addFriend(userId, friendId, store);
+  const result = await sendFriendRequest(userId, friendId, store);
   if (!result.success) {
     return res.status(400).json({ message: result.message });
   }
 
-  res.json({ message: `Friend added successfully` });
+  res.json({ message: result.message });
 });
-//TODO:
+
 app.get("/users/friends", async (req, res) => {
-  const id = req.query.id || req.body.id
+  const id = req.query.id || req.body.id;
   const result = await getFriends(id, store);
   if (!result.success) {
     return res.status(404).json({ message: result.message });
   }
   res.json({ message: `Friends list for user ID: ${id}`, friends: result.friends });
 });
-//TODO:
-app.get("/users/friends/requests", (req, res) => {
-  // Logic to get pending friend requests for a user
-  res.json({
-    message: `Pending friend requests for user ID: ${req.query.id}`,
-  });
+
+app.get("/users/friends/requests", async (req, res) => {
+  const id = req.query.id || req.body.id;
+  if (!id) {
+    return res.status(400).json({ message: "Missing user id" });
+  }
+  const result = await getPendingRequests(id, store);
+  if (!result.success) {
+    return res.status(404).json({ message: result.message });
+  }
+  res.json({ message: `Pending requests for user ID: ${id}`, requests: result.requests });
 });
-//TODO:
-app.post("/users/friends/accept", (req, res) => {
-  // Logic to accept a friend request
-  res.json({
-    message: `Friend request accepted for user ID: ${req.query.id}`,
-  });
+
+app.get("/users/friends/sent", async (req, res) => {
+  const id = req.query.id || req.body.id;
+  if (!id) {
+    return res.status(400).json({ message: "Missing user id" });
+  }
+  const result = await getSentRequests(id, store);
+  if (!result.success) {
+    return res.status(404).json({ message: result.message });
+  }
+  res.json({ message: `Sent requests for user ID: ${id}`, requests: result.requests });
 });
-//TODO:
-app.post("/users/friends/reject", (req, res) => {
-  // Logic to reject a friend request
-  res.json({
-    message: `Friend request rejected for user ID: ${req.query.id}`,
-  });
+
+app.post("/users/friends/accept", async (req, res) => {
+  const userId = req.body.userId || req.query.id;
+  const fromUserId = req.body.fromUserId || req.body.friendId;
+  if (!userId || !fromUserId) {
+    return res.status(400).json({ message: "Missing userId or fromUserId" });
+  }
+  const result = await acceptFriendRequest(userId, fromUserId, store);
+  if (!result.success) {
+    return res.status(400).json({ message: result.message });
+  }
+  res.json({ message: result.message });
+});
+
+app.post("/users/friends/reject", async (req, res) => {
+  const userId = req.body.userId || req.query.id;
+  const fromUserId = req.body.fromUserId || req.body.friendId;
+  if (!userId || !fromUserId) {
+    return res.status(400).json({ message: "Missing userId or fromUserId" });
+  }
+  const result = await rejectFriendRequest(userId, fromUserId, store);
+  if (!result.success) {
+    return res.status(400).json({ message: result.message });
+  }
+  res.json({ message: result.message });
+});
+
+app.delete("/users/friends", async (req, res) => {
+  const userId = req.body.userId || req.query.id;
+  const friendId = req.body.friendId || req.query.friendId;
+  if (!userId || !friendId) {
+    return res.status(400).json({ message: "Missing userId or friendId" });
+  }
+  const result = await removeFriend(userId, friendId, store);
+  if (!result.success) {
+    return res.status(400).json({ message: result.message });
+  }
+  res.json({ message: result.message });
 });
 
 app.get("/users/courses", async (req, res) => {
@@ -315,9 +884,77 @@ app.get("/users/details", async (req, res) => {
   res.json({ message: `User details for user ID: ${id}`, data: tmp.data, clases: tmpClss });
 });
 
+// NOTA: Se usa /users/update?id=<id> en lugar de /users/:id porque los IDs de RavenDB
+// tienen formato "users/000-A" (contienen una barra). Express interpreta la barra como
+// un separador de segmentos de ruta, por lo que /:id nunca hace match con esos valores.
+// Pasar el ID como query string evita este problema ya que req.query.id lo decodifica sin
+// romper el enrutamiento.
+app.put("/users/update", async (req, res) => {
+  // --- Validación de sesión ---
+  // El token se recibe por Authorization Bearer (frontend) o por cookie (withCredentials).
+  // Se consulta en Redis para verificar que la sesión esté activa.
+  const authHeader = req.headers?.authorization;
+  const bearerToken = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length).trim()
+    : null;
+  const token = req.cookies?.accessToken || bearerToken;
+
+  let tokenUserId = null;
+  if (token && RDclient) {
+    try {
+      const raw = await RDclient.get(token);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        tokenUserId = parsed?.user?.id || parsed?.uid || null;
+      }
+    } catch { /* Redis error — se trata como no autenticado */ }
+  }
+
+  if (!tokenUserId) {
+    return res.status(401).json({ error: 'Sesión no válida. Inicia sesión de nuevo.' });
+  }
+
+  const id = req.query.id;
+  if (!id) return res.status(400).json({ error: 'Falta el parámetro id.' });
+
+  // --- Autorización: solo puede editar su propio perfil ---
+  if (tokenUserId !== id) {
+    return res.status(403).json({ error: 'No tienes permiso para modificar este perfil.' });
+  }
+
+  const { username, fullName, dateOfBirth, avatar, email, role } = req.body;
+
+  // Verificar que el nuevo username no esté ya en uso por otro usuario
+  if (username) {
+    const current = await loadUser(id, store);
+    const currentUsername = current?.data?.username || '';
+    if (username.toLowerCase() !== currentUsername.toLowerCase()) {
+      const taken = await checkUsernameExists(username, store);
+      if (taken) {
+        return res.status(409).json({ error: 'El nombre de usuario ya está en uso.' });
+      }
+    }
+  }
+
+  const data = {
+    username,
+    name: fullName,
+    dob: dateOfBirth,
+    picPath: avatar,
+    correo: email,
+    typeofuser: role
+  };
+  const result = await updateUser(id, data, store);
+  if (!result.success) {
+    return res.status(404).json({ error: result.message });
+  }
+  res.json({ user: result.data });
+});
+
 //login logout
 //DONE:     // TEST: test access logging feature
-app.get("/login", async (req, res) => {
+// cambio de get a post para que el frontend pueda enviar el token por body
+app.post("/login", async (req, res) => {
   try {
     let msg = null;
     const userDevice = getDeviceInfo(req);
@@ -423,17 +1060,22 @@ app.get("/login", async (req, res) => {
               success: false,
               message: "Invalid username or password",
             });
-          } else {        //login exitoso
+          } else {
+            // Este es el PRIMER intento fallido
+            // Inicializar contador en Redis y registrar el intento en MongoDB
             await RDclient.set(
               token,
               JSON.stringify({
                 lastLogin: new Date(),
-                attempts: 1,
+                attempts: 1, // Primer intento fallido
                 lockout: false,
                 login: false,
               }),
               { EX: 60 * 60 },
             );
+            
+            // Registrar el primer intento fallido en MongoDB
+            sendEmail(MPClient, null, null, "Intento de inicio de sesion fallido", "Ha habido un intento fallido de inicio de sesion a su cuenta")
             createAccessLog({
               ip: req.ip,
               userIdOrToken: msg.user.id,
@@ -441,6 +1083,7 @@ app.get("/login", async (req, res) => {
               device: userDevice,
               successful: false
             })
+            
             return res.json({
               success: false,
               message: "Invalid username or password",
@@ -457,6 +1100,11 @@ app.get("/login", async (req, res) => {
       //creds validas
       else {
         try {
+          const sessionTTL = req.body.rememberMe ? 14 * 24 * 60 * 60 : 60 * 60;
+          
+          // Guardar IP y Device en la sesión
+          // Esto permite recuperar estos valores exactos en logout
+          // sin depender de que el cliente los reenvíe
           await RDclient.set(
             token,
             JSON.stringify({
@@ -465,11 +1113,25 @@ app.get("/login", async (req, res) => {
               lockout: false,
               token: token,
               user: { id: msg.user.id },
+              ip: req.ip, // IP real (considerando proxies)
+              device: userDevice, // Device/navegador capturado
               login: true,
             }),
-            { EX: 60 * 60 },
-          ); // Set token with expiration of 1 hour
+            // Si el usuario marcó "Recordarme", la sesión dura 14 días; si no, 1 hora.
+            { EX: sessionTTL },
+          ); // Set token with expiration
           msg.token = token;
+
+          // Establecer cookie httpOnly con el token de sesión.
+          // httpOnly: no accesible desde JavaScript (protege contra XSS).
+          // secure: solo se envía por HTTPS (en producción).
+          // sameSite: Strict para proteger contra CSRF.
+          res.cookie('accessToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+            maxAge: sessionTTL * 1000
+          });
 
           createAccessLog({
             ip: req.ip,
@@ -499,19 +1161,49 @@ app.get("/login", async (req, res) => {
 });
 
 //DONE:
-app.get("/logout", async (req, res) => {
+// cambio de get a post para que el frontend pueda enviar el token por
+// body o cookie
+app.post("/logout", async (req, res) => {
   try {
-    // Logic for user logout
-    const userDevice = getDeviceInfo(req);
-    if (req.body.token) {
-      //invalidate token on redis here
+    // El token puede venir como cookie httpOnly (flujo normal) o en el body (compatibilidad).
+    const token = req.cookies?.accessToken || req.body?.token;
+    
+    if (token) {
       try {
-        await RDclient.del(req.body.token);
+        // Recupera datos de la sesión ANTES de borrarla
+        // Esto asegura que usemos exactamente los mismos valores de IP y Device del login
+        let userId = null;
+        let sessionIp = req.ip; // Fallback a IP actual
+        let sessionDevice = getDeviceInfo(req); // Fallback a device actual
+        
+        try {
+          const sessionData = await RDclient.get(token);
+          if (sessionData) {
+            const parsed = JSON.parse(sessionData);
+            userId = parsed?.user?.id || null;
+            // Usar IP y Device guardados en login, si existen
+            sessionIp = parsed?.ip || sessionIp;
+            sessionDevice = parsed?.device || sessionDevice;
+          }
+        } catch (parseError) {
+          console.error("Error parsing session data:", parseError.message);
+        }
 
+        // Ahora sí borrar la sesión
+        await RDclient.del(token);
+
+        // Eliminar la cookie de sesión del navegador.
+        res.clearCookie('accessToken', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Strict'
+        });
+
+        // Usar IP y Device de la sesión guardada
         createAccessLog({
-          ip: req.ip,
-          userIdOrToken: req.body.token,
-          device: userDevice,
+          ip: sessionIp,
+          userIdOrToken: userId || token,
+          device: sessionDevice,
           action: 'logout',
           successful: true
         })
@@ -520,10 +1212,27 @@ app.get("/logout", async (req, res) => {
       } catch (redisError) {
         console.error("Redis error during logout:", redisError);
 
+        // En caso de error, intentar recuperar lo máximo posible
+        let userId = null;
+        let sessionIp = req.ip;
+        let sessionDevice = getDeviceInfo(req);
+        
+        try {
+          const sessionData = await RDclient.get(token);
+          if (sessionData) {
+            const parsed = JSON.parse(sessionData);
+            userId = parsed?.user?.id || null;
+            sessionIp = parsed?.ip || sessionIp;
+            sessionDevice = parsed?.device || sessionDevice;
+          }
+        } catch (e) {
+          // Silent fail
+        }
+
         createAccessLog({
-          ip: req.ip,
-          userIdOrToken: req.body.token,
-          device: userDevice,
+          ip: sessionIp,
+          userIdOrToken: userId || token,
+          device: sessionDevice,
           action: 'logout',
           successful: false
         })
@@ -894,6 +1603,7 @@ app.post("/courses/clone", async (req, res) => {
   }
 });
 //DONE:
+// Conexión StudentCourseView: Obtener detalles de un curso específico o listado de todos
 app.get("/courses", async (req, res) => {
   const classCode = req.query.classCode;
   if (classCode) {
@@ -907,6 +1617,7 @@ app.get("/courses", async (req, res) => {
   res.json({ message: "All available courses", classes });
 });
 //DONE:
+// Conexión CourseDetail: Matricular un estudiante en un curso
 app.post("/courses/enroll", async (req, res) => {
   const classCode = req.query.classCode;
   const { studentId } = req.body;
@@ -915,10 +1626,19 @@ app.post("/courses/enroll", async (req, res) => {
     return res.status(400).json({ message: "Missing studentId" });
   }
 
-  await addStudent(neo4jDriver, classCode, studentId);
-  res.json({ message: "Student enrolled successfully", classCode, studentId });
+  if (!classCode) {
+    return res.status(400).json({ message: "Missing classCode. Use /courses/enroll?classCode=CODE" });
+  }
+
+  try {
+    await addStudent(neo4jDriver, classCode, studentId);
+    res.json({ message: "Student enrolled successfully", classCode, studentId });
+  } catch (err) {
+    res.status(500).json({ message: `Could not enroll student: ${err.message}` });
+  }
 });
 //DONE:
+// Conexión CourseDetail: Obtener cursos en los que está matriculado un estudiante
 app.get("/courses/enrolled", async (req, res) => {
   const studentId = req.query.id || req.body.id;
   if (!studentId) {
@@ -934,15 +1654,77 @@ app.get("/courses/evaluations", async (req, res) => {
   const evaluations = await getEvaluations(neo4jDriver, classCode);
   res.json({ message: `Evaluations for course ${classCode}`, evaluations });
 });
-//TODO:
-app.post("/courses/submit", (req, res) => {
-  // Logic to submit an evaluation for a course
-  res.json({ message: `Evaluation submitted for course ID: ${req.query.id}` });
+app.post("/courses/submit", async (req, res) => {
+  const classCode = req.query.classCode || req.query.id;
+  const evalId = req.query.evalId || req.body.evalId;
+
+  if (!evalId) {
+    return res.status(400).json({ success: false, message: "Missing evalId" });
+  }
+
+  const submission = {
+    userId: req.body.userId,
+    username: req.body.username,
+    courseId: req.body.courseId || classCode,
+    evalId: req.body.evalId || evalId,
+    assessmentTitle: req.body.assessmentTitle,
+    score: req.body.score,
+    correctAnswers: req.body.correctAnswers,
+    totalQuestions: req.body.totalQuestions,
+    questionResults: req.body.questionResults,
+    submittedAt: req.body.submittedAt || new Date().toISOString()
+  };
+
+  if (!submission.userId) {
+    return res.status(400).json({ success: false, message: "Missing userId" });
+  }
+
+  try {
+    await submitEvaluation(neo4jDriver, submission);
+    res.json({ success: true, message: "Evaluation submitted successfully", result: submission });
+  } catch (error) {
+    console.error("Error submitting evaluation:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to submit evaluation",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 });
-//TODO:
-app.get("/courses/grades", (req, res) => {
-  // Logic to get grades for a course
-  res.json({ message: `Grades for course ID: ${req.query.id}` });
+
+app.get("/courses/grades", async (req, res) => {
+  const evalId = req.query.evalId || req.query.id;
+  const userId = req.query.userId;
+  const classCode = req.query.classCode;
+
+  try {
+    // Caso 1: resultado individual → evalId + userId
+    if (evalId && userId) {
+      const result = await getEvaluationResult(neo4jDriver, evalId, userId);
+      return res.json({ success: true, result });
+    }
+
+    // Caso 2: todos los intentos de una evaluación → evalId solo
+    if (evalId && !userId) {
+      const results = await getEvaluationSubmissions(neo4jDriver, evalId);
+      return res.json({ success: true, results });
+    }
+
+    // Caso 3: todos los resultados de un usuario en un curso → classCode + userId
+    if (classCode && userId) {
+      const results = await getCourseSubmissionsForUser(neo4jDriver, classCode, userId);
+      return res.json({ success: true, results });
+    }
+
+    return res.status(400).json({ success: false, message: "Provide evalId, classCode, and/or userId" });
+  } catch (error) {
+    console.error("Error fetching grades:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch grades",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 });
 
 //messages
@@ -965,7 +1747,12 @@ app.post("/messages/send", async (req, res) => {
     } catch {/* does nothing */};
   }
 
-  const fromUserId = senderIdFromToken || req.query.id || req.body.fromUserId;
+  // Usar fromUserId del body como prioridad (es lo que el frontend está controlando)
+  // El token podría estar desactualizado/sobreescrito entre tabs
+  // Esto fue un intento para arreglar problemas de token en el frontend 
+  // Pero básicamente es que si abre dos tabs van a compartir la misma cookie y
+  // eso no le gusta al sistema de mensajes.
+  const fromUserId = req.body.fromUserId || senderIdFromToken || req.query.id;
   const toUserId = req.body.toUserId || req.body.recipientId;
   const content = req.body.content;
 
@@ -1069,6 +1856,59 @@ app.post("/messages/conversation", async (req, res) => {
   } catch (err) {
     console.error("messages/conversation error:", err);
     return res.status(500).json({ success: false, message: "Failed to fetch conversation messages" });
+  }
+});
+
+app.post("/messages/clear-all", async (req, res) => {
+  try {
+    const result = await clearAllMessages();
+    return res.json({
+      success: true,
+      message: "All messages cleared successfully",
+      deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    console.error("messages/clear-all error:", err);
+    return res.status(500).json({ success: false, message: "Failed to clear messages" });
+  }
+});
+
+app.post("/messages/mark-as-read", async (req, res) => {
+  const { userId, otherUserId } = req.body;
+  
+  if (!userId || !otherUserId) {
+    return res.status(400).json({ success: false, message: "Missing userId or otherUserId" });
+  }
+
+  try {
+    const result = await markMessagesAsRead(userId, otherUserId);
+    return res.json({
+      success: true,
+      message: "Messages marked as read",
+      modifiedCount: result.modifiedCount
+    });
+  } catch (err) {
+    console.error("messages/mark-as-read error:", err);
+    return res.status(500).json({ success: false, message: "Failed to mark messages as read" });
+  }
+});
+
+app.post("/messages/unread-count", async (req, res) => {
+  const { userId, otherUserId } = req.body;
+  
+  if (!userId || !otherUserId) {
+    return res.status(400).json({ success: false, message: "Missing userId or otherUserId" });
+  }
+
+  try {
+    const count = await getUnreadCount(userId, otherUserId);
+    return res.json({
+      success: true,
+      unreadCount: count
+    });
+  } catch (err) {
+    console.error("messages/unread-count error:", err);
+    return res.status(500).json({ success: false, message: "Failed to get unread count" });
   }
 });
 

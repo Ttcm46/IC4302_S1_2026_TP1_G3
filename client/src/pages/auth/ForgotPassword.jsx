@@ -3,15 +3,18 @@ import { authService } from '../../services/auth';
 import '../../styles/auth.css';
 
 /**
- * FALTANTES DE SEGURIDAD EN RECUPERACIÓN DE CONTRASEÑA:
+ * SEGURIDAD EN RECUPERACIÓN DE CONTRASEÑA:
  * 
- * 1. RECUPERACIÓN SIMULADA SIN VALIDACIÓN REAL (authStore.js:152, 156, 158):
- *    Muestra mensajes de éxito pero no genera token de un solo uso,
- *    no hay expiración corta, no se invalida tras usar.
- *    Requisito: Token único, criptográficamente aleatorio, con expiración (1 hora),
- *    válido solo una vez, generado al solicitar recuperación.
- *    TODO: Servidor genera token criptográfico, lo asocia a email con expiration,
- *    envía link con token, invalida tras primer uso exitoso.
+ * 1. TOKEN DE RECUPERACIÓN SEGURO:
+ *    Servidor genera token criptográficamente aleatorio (32 bytes),
+ *    lo asocia a email con expiración de 5 minutos,
+ *    es válido solo una vez, se invalida tras primer uso exitoso.
+ *    Status: IMPLEMENTADO (servidor)
+ * 
+ * 2. VALIDACIÓN DE NUEVA CONTRASEÑA:
+ *    En ResetPassword se valida que cumpla con política fuerte
+ *    (8+ chars, mayús, minús, número, símbolo)
+ *    Status: IMPLEMENTADO
  */
 
 /**

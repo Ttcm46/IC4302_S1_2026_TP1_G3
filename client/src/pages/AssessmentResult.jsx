@@ -54,11 +54,13 @@ export default function EnrolledAssessmentResult() {
   const [course, setCourse] = useState(null);
   const [assessment, setAssessment] = useState(null);
   const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true);
   const currentUser = useMemo(() => getSessionUser() || {}, []);
   const currentUserId = String(currentUser.id || currentUser.username || 'anonymous-user');
 
   useEffect(() => {
     const loadData = async () => {
+      setLoading(true);
       const response = await courseService.getCourse(id);
       const loadedCourse = response.data?.course || null;
       setCourse(loadedCourse);
@@ -69,6 +71,7 @@ export default function EnrolledAssessmentResult() {
 
       const gradeResponse = await assessmentService.getAssessmentResult(id, assessmentId);
       setResult(gradeResponse.data?.result || null);
+      setLoading(false);
     };
 
     loadData();
@@ -79,6 +82,21 @@ export default function EnrolledAssessmentResult() {
     if (course.createdByCurrentUser) return true;
     return (course.enrolledStudentIds || []).includes(currentUserId);
   }, [course, currentUserId]);
+
+  if (loading) {
+    return (
+      <div className="assessment-result-page">
+        <button type="button" className="back-button" onClick={() => navigate(`/courses/${id}/registered?tab=assessments`)}>
+          ← Volver
+        </button>
+        <div className="loading-screen">
+          <div className="loading-spinner" />
+          <p>Cargando resultado...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!course || !assessment) {
     return (
       <div className="assessment-result-page">

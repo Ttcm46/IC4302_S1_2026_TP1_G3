@@ -104,6 +104,8 @@ export default function ManageCourse() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [course, setCourse] = useState(null);
   const [loadingCourse, setLoadingCourse] = useState(true);
+  const [loadingResource, setLoadingResource] = useState(false);
+  const [loadingSection, setLoadingSection] = useState(false);
 
   // estados de evaluación
   const [assessmentMeta, setAssessmentMeta] = useState({
@@ -297,6 +299,7 @@ export default function ManageCourse() {
     }
 
     try {
+      setLoadingSection(true);
       await courseService.createSection(course.id, {
         title: form.title,
         description: form.description,
@@ -306,6 +309,8 @@ export default function ManageCourse() {
       setRefreshKey((value) => value + 1);
     } catch (err) {
       setError(err.response?.data?.message || 'No fue posible guardar la sección.');
+    } finally {
+      setLoadingSection(false);
     }
   };
 
@@ -347,6 +352,7 @@ export default function ManageCourse() {
     }
 
     try {
+      setLoadingResource(true);
       await courseService.addSectionResource(resourceForm.sectionId, {
         type: resourceForm.type,
         title: resourceForm.title,
@@ -361,7 +367,24 @@ export default function ManageCourse() {
       setRefreshKey((value) => value + 1);
     } catch (err) {
       setResourceError(err.response?.data?.message || 'No fue posible agregar el material.');
+    } finally {
+      setLoadingResource(false);
     }
+  };
+
+  /**
+   * checkIsFinished(endDate)
+   * 
+   * Qué hace: Determina si un curso debe estar marcado como terminado.
+   * Cómo: Verifica si endDate existe y es menor que la fecha actual.
+   * Por qué: Los cursos se marcan como terminados automáticamente cuando su fecha final ha pasado.
+   */
+  const checkIsFinished = (endDate) => {
+    if (!endDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Ignorar hora
+    const courseEndDate = new Date(`${endDate}T00:00:00`);
+    return courseEndDate < today;
   };
 
   /**
@@ -383,18 +406,20 @@ export default function ManageCourse() {
       return;
     }
 
-    if (courseForm.endDate && courseForm.endDate < courseForm.startDate) {
+    if (courseForm.endDate?.trim() && courseForm.endDate < courseForm.startDate) {
       setCourseError('La fecha de fin no puede ser menor que la fecha de inicio.');
       return;
     }
 
     try {
+      const isFinished = checkIsFinished(courseForm.endDate);
       await courseService.updateCourse(course.id, {
         name: courseForm.name,
         description: course.description,
         startDate: courseForm.startDate,
         endDate: courseForm.endDate || null,
-        coverImage: course.coverImage
+        coverImage: course.coverImage,
+        isFinished
       });
       setIsEditingCourse(false);
       setRefreshKey((value) => value + 1);
@@ -520,7 +545,23 @@ export default function ManageCourse() {
     }
 
     try {
+      // Al publicar, verificar si debería estar terminado
+      const isFinished = nextPublishedState ? checkIsFinished(course.endDate) : course.isFinished;
+      
       await courseService.publishCourse(course.id, nextPublishedState);
+      
+      // Si el curso debería estar terminado pero no lo está marcado, actualizarlo
+      if (isFinished && !course.isFinished) {
+        await courseService.updateCourse(course.id, {
+          name: course.name,
+          description: course.description,
+          startDate: course.startDate,
+          endDate: course.endDate,
+          coverImage: course.coverImage,
+          isFinished: true
+        });
+      }
+      
       setRefreshKey((value) => value + 1);
     } catch {
       setCourseError('No fue posible actualizar la visibilidad del curso.');
@@ -996,8 +1037,8 @@ export default function ManageCourse() {
 
             {error ? <p className="error-text">{error}</p> : null}
 
-            <button type="submit" className="btn-primary add-section-btn">
-              Guardar sección
+            <button type="submit" className="btn-primary add-section-btn" disabled={loadingSection}>
+              {loadingSection ? 'Guardando sección...' : 'Guardar sección'}
             </button>
           </form>
         </aside>
@@ -1092,8 +1133,8 @@ export default function ManageCourse() {
 
             {resourceError ? <p className="error-text">{resourceError}</p> : null}
 
-            <button type="submit" className="btn-primary add-section-btn">
-              Agregar contenido
+            <button type="submit" className="btn-primary add-section-btn" disabled={loadingResource}>
+              {loadingResource ? 'Subiendo archivo...' : 'Agregar contenido'}
             </button>
           </form>
         </aside>

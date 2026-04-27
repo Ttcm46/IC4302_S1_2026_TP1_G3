@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { assessmentService, courseService } from '../services/auth';
+import { assessmentService, courseService, userService } from '../services/auth';
 import '../styles/assessment-result.css';
 import '../styles/assessment-submissions.css';
 
@@ -59,13 +59,15 @@ export default function ManageAssessmentSubmissions() {
   const [assessment, setAssessment] = useState(null);
   const [students, setStudents] = useState([]);
   const [submissionResults, setSubmissionResults] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
+      setLoading(true);
       const response = await courseService.getCourse(id);
       const loadedCourse = response.data?.course || null;
       setCourse(loadedCourse);
-      setStudents(Array.isArray(loadedCourse?.enrolledStudents) ? loadedCourse.enrolledStudents : []);
+
       const foundAssessment = (loadedCourse?.assessments || []).find(
         (item) => String(item.id) === String(assessmentId)
       ) || null;
@@ -73,9 +75,39 @@ export default function ManageAssessmentSubmissions() {
 
       const gradesResponse = await assessmentService.getAssessmentSubmissions(id, assessmentId);
       setSubmissionResults(Array.isArray(gradesResponse.data?.results) ? gradesResponse.data.results : []);
+
+      // Enriquecer estudiantes con perfiles reales en paralelo
+      const rawStudents = Array.isArray(loadedCourse?.enrolledStudents) ? loadedCourse.enrolledStudents : [];
+      const enriched = await Promise.all(
+        rawStudents.map(async (student) => {
+          if (student.username !== student.userId) return student;
+          try {
+            const res = await userService.getProfile(student.userId);
+            const u = res.data?.user;
+            if (u) {
+              return { ...student, username: u.username || student.userId, fullName: u.fullName || u.username || student.userId };
+            }
+          } catch { /* fallback */ }
+          return student;
+        })
+      );
+      setStudents(enriched);
+      setLoading(false);
     };
 
     loadData();
+
+    // Poll submissions every 15 seconds so new student results appear without refreshing
+    const pollSubmissions = async () => {
+      try {
+        const gradesResponse = await assessmentService.getAssessmentSubmissions(id, assessmentId);
+        setSubmissionResults(Array.isArray(gradesResponse.data?.results) ? gradesResponse.data.results : []);
+      } catch {
+        // silently ignore poll errors
+      }
+    };
+    const intervalId = setInterval(pollSubmissions, 15000);
+    return () => clearInterval(intervalId);
   }, [id, assessmentId]);
 
   // SELECTION STATE
@@ -100,6 +132,20 @@ export default function ManageAssessmentSubmissions() {
 
     return submissionResults.find((result) => String(result.userId) === String(selectedUserId)) || null;
   }, [submissionResults, selectedUserId]);
+
+  if (loading) {
+    return (
+      <div className="manage-assessment-submissions-page">
+        <button type="button" className="back-button" onClick={() => navigate(`/courses/${id}/manage`)}>
+          ← Volver
+        </button>
+        <div className="loading-screen">
+          <div className="loading-spinner" />
+          <p>Cargando evaluaciones...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!course || !assessment) {
     return (
@@ -155,8 +201,8 @@ export default function ManageAssessmentSubmissions() {
                   className={`student-item-btn ${student.userId === selectedUserId ? 'active' : ''}`}
                   onClick={() => setSelectedUserId(student.userId)}
                 >
-                  <strong>{student.username}</strong>
-                  <span className="muted">{student.userId}</span>
+                  <strong>{student.fullName || student.username}</strong>
+                  <span className="muted">@{student.username}</span>
                 </button>
               ))}
             </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../../services/auth';
+import { validatePassword, getPasswordErrors } from '../../utils/passwordValidation';
 import '../../styles/auth.css';
 
 /**
@@ -37,11 +38,19 @@ export default function Register() {
   const [success, setSuccess] = useState('');
   // Spinner durante el envío al servidor
   const [loading, setLoading] = useState(false);
+  // Errores de validación de contraseña (política de seguridad)
+  const [passwordErrors, setPasswordErrors] = useState([]);
 
   // Actualiza el estado del formulario con los valores ingresados por el usuario
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Validar contraseña en tiempo real si es el campo de password
+    if (name === 'password') {
+      const errors = getPasswordErrors(value);
+      setPasswordErrors(errors);
+    }
   };
 
   // Maneja la carga del avatar:
@@ -64,13 +73,21 @@ export default function Register() {
 
   // Maneja el envío del formulario:
   // 1. Valida que las contraseñas coincidan
-  // 2. Envía datos a authService.register()
-  // 3. Registra en el sistema social con rol 'student'
-  // 4. Muestra mensaje de éxito y redirige a login
+  // 2. Valida que cumpla política de seguridad
+  // 3. Envía datos a authService.register()
+  // 4. Registra en el sistema social con rol 'student'
+  // 5. Muestra mensaje de éxito y redirige a login
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    // Validar política de contraseña
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.isValid) {
+      setError('La contraseña no cumple con la política de seguridad. ' + passwordValidation.errors.join(', '));
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Las contraseñas no coinciden.');
@@ -79,6 +96,8 @@ export default function Register() {
 
     setLoading(true);
     try {
+      console.log('[Register] Intento de registro con username:', formData.username.trim(), 'email:', formData.email.trim());
+      
       await authService.register({
         username: formData.username.trim(),
         email: formData.email.trim(),
@@ -91,7 +110,16 @@ export default function Register() {
       setSuccess('Registro completado. Ahora puedes iniciar sesión.');
       setTimeout(() => navigate('/login'), 900);
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || err.message || 'No fue posible registrarte.');
+      console.error('[Register] Error de registro:', err);
+      
+      // El backend retorna {error: "mensaje"}
+      const errorMessage = err?.response?.data?.error || 
+                          err?.response?.data?.message || 
+                          err?.message || 
+                          'No fue posible registrarte.';
+      
+      console.log('[Register] Mostrando error:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -129,6 +157,20 @@ export default function Register() {
           <div className="form-group">
             <label htmlFor="password">Password</label>
             <input id="password" name="password" type="password" value={formData.password} onChange={handleChange} required autoComplete="new-password" />
+            
+            {/* Mostrar requisitos de contraseña con validación en tiempo real */}
+            {formData.password && (
+              <div className="password-requirements" role="status" aria-live="polite">
+                <div className="requirements-title">Requisitos de contraseña:</div>
+                {passwordErrors.length === 0 ? (
+                  <div className="requirement requirement-valid">✓ Contraseña válida</div>
+                ) : (
+                  passwordErrors.map((error, idx) => (
+                    <div key={idx} className="requirement requirement-invalid">✗ {error}</div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           <div className="form-group">

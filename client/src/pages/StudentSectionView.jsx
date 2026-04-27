@@ -22,13 +22,26 @@ import '../styles/student-section-view.css';
  * - Si es tema raíz: volver va a la vista del curso
  */
 
+function PdfToggle({ src, title, onPdfClick }) {
+  return (
+    <div className="enrolled-resource-pdf-wrapper">
+      <button type="button" className="btn-primary" onClick={() => onPdfClick(src, title)}>
+        Ver PDF
+      </button>
+      <a href={src} download={title} className="btn-secondary">
+        Descargar PDF
+      </a>
+    </div>
+  );
+}
+
 /**
- * renderResourcePreview(resource)
+ * renderResourcePreview(resource, onImageClick)
  * 
- * Qué hace: Renderiza vista previa del recurso según su tipo (igual que StudentCourseView).
- * Por qué: Reutilizable, centraliza la lógica de renderizado.
+ * Qué hace: Renderiza vista previa del recurso según su tipo.
+ * Cambios: Imágenes son clickeables para fullscreen, documentos muestran solo nombre.
  */
-function renderResourcePreview(resource) {
+function renderResourcePreview(resource, onImageClick) {
   if (resource.type === 'text') {
     return <p className="enrolled-resource-text">{resource.text || 'Sin contenido de texto.'}</p>;
   }
@@ -38,13 +51,25 @@ function renderResourcePreview(resource) {
   }
 
   if (resource.type === 'image') {
-    return <img src={resource.fileData} alt={resource.title} className="enrolled-resource-media" />;
+    return (
+      <img
+        src={resource.fileData}
+        alt={resource.title}
+        className="enrolled-resource-media enrolled-resource-clickable"
+        onClick={() => onImageClick(resource.fileData)}
+        style={{ cursor: 'pointer' }}
+      />
+    );
   }
 
   if (resource.fileData) {
+    const isPdf = resource.fileData.startsWith('data:application/pdf');
+    if (isPdf) {
+      return <PdfToggle src={resource.fileData} title={resource.title} onPdfClick={onImageClick} />;
+    }
     return (
-      <a href={resource.fileData} target="_blank" rel="noreferrer" className="enrolled-resource-link">
-        Abrir archivo
+      <a href={resource.fileData} download={resource.title} className="enrolled-resource-link">
+        Descargar documento
       </a>
     );
   }
@@ -63,6 +88,29 @@ function getResourceTypeLabel(type) {
   if (type === 'video') return 'Video';
   if (type === 'image') return 'Imagen';
   return 'Documento';
+}
+
+/**
+ * findSectionById(nodes, targetId)
+ * 
+ * Qué hace: Busca recursivamente una sección por su ID en todo el árbol.
+ * Por qué: Las subsecciones están anidadas en children, no solo en nivel raíz.
+ */
+function findSectionById(nodes, targetId) {
+  for (const node of nodes) {
+    if (String(node.id) === String(targetId)) {
+      return node;
+    }
+
+    if (node.children && node.children.length > 0) {
+      const found = findSectionById(node.children, targetId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -126,6 +174,8 @@ export default function EnrolledSectionDetail() {
   const [course, setCourse] = useState(null);
   const [loadingCourse, setLoadingCourse] = useState(true);
   const [courseError, setCourseError] = useState('');
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [pdfModal, setPdfModal] = useState({ open: false, src: null, title: null });
 
   // ============================================
   // DATA LOADING
@@ -152,7 +202,7 @@ export default function EnrolledSectionDetail() {
       return null;
     }
 
-    return (course.sections || []).find((node) => String(node.id) === String(sectionId)) || null;
+    return findSectionById(course.sections || [], sectionId);
   }, [course, sectionId]);
 
   const currentUser = useMemo(() => getSessionUser() || {}, []);
@@ -295,9 +345,34 @@ export default function EnrolledSectionDetail() {
                   <strong>{resource.title}</strong>
                   <span className="resource-chip">{getResourceTypeLabel(resource.type)}</span>
                 </div>
-                {renderResourcePreview(resource)}
+                {renderResourcePreview(resource, (src, title) => {
+                  const isPdf = src && src.startsWith('data:application/pdf');
+                  if (isPdf) {
+                    setPdfModal({ open: true, src, title });
+                  } else {
+                    setFullscreenImage(src);
+                  }
+                })}
               </article>
             ))}
+          </div>
+        )}
+
+        {fullscreenImage && (
+          <div className="image-fullscreen-modal" onClick={() => setFullscreenImage(null)}>
+            <div className="image-fullscreen-container" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="image-fullscreen-close" onClick={() => setFullscreenImage(null)}>×</button>
+              <img src={fullscreenImage} alt="Fullscreen view" className="image-fullscreen" />
+            </div>
+          </div>
+        )}
+
+        {pdfModal.open && (
+          <div className="pdf-modal" onClick={() => setPdfModal({ open: false, src: null, title: null })}>
+            <div className="pdf-modal-container" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="pdf-modal-close" onClick={() => setPdfModal({ open: false, src: null, title: null })}>×</button>
+              <iframe src={pdfModal.src} title={pdfModal.title} className="pdf-modal-iframe" />
+            </div>
           </div>
         )}
       </section>

@@ -18,6 +18,37 @@
   margin: 0;
 }
 
+.dashboard-header-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dashboard-profile-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.5);
+}
+
+.dashboard-profile-avatar-fallback {
+  background: rgba(255,255,255,0.25);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.dashboard-profile-username {
+  margin: 0.15rem 0 0;
+  color: rgba(255,255,255,0.8);
+  font-size: 0.9rem;
+}
+
 .dashboard-top-widgets {
   display: grid;
   grid-template-columns: 1.1fr 1fr;

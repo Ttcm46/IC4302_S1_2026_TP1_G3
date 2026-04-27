@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { assessmentService, courseService } from '../services/auth';
+import { assessmentService, courseService, userService } from '../services/auth';
 import { getSessionUser } from '../services/session';
 import '../styles/student-course-view.css';
 
@@ -62,7 +62,10 @@ function formatDateTime(dateValue, timeValue) {
 
 function formatDate(value) {
   if (!value) return 'Siempre disponible';
-  return new Date(`${value}T00:00:00`).toLocaleDateString('es-CR');
+  // Soportar tanto 'YYYY-MM-DD' como ISO completo 'YYYY-MM-DDTHH:mm:ss.sssZ'
+  const d = new Date(value.includes('T') ? value : `${value}T00:00:00`);
+  if (isNaN(d.getTime())) return 'Siempre Disponible';
+  return d.toLocaleDateString('es-CR');
 }
 
 /**
@@ -140,7 +143,7 @@ function renderResourcePreview(resource) {
  * Por qué: La sección de participantes necesita estos datos formateados de forma específica.
  *          Centralizar evita lógica duplicada o errores en múltiples lugares.
  */
-function buildParticipants(course, currentUser) {
+function buildParticipants(course, currentUser, studentProfiles = {}) {
   const teacher = {
     userId: course.ownerId || `course-${course.id}-teacher`,
     displayName: course.teacher || 'Docente no definido',
@@ -150,7 +153,7 @@ function buildParticipants(course, currentUser) {
 
   const students = (course.enrolledStudentIds || []).map((studentId) => ({
     userId: String(studentId),
-    displayName: String(studentId),
+    displayName: studentProfiles[studentId] || String(studentId),
     roleLabel: String(studentId) === currentUserId ? 'Tu cuenta' : 'Estudiante matriculado'
   }));
 
@@ -179,6 +182,14 @@ export default function EnrolledCourse() {
   const [loadingCourse, setLoadingCourse] = useState(true);
   const [courseError, setCourseError] = useState('');
   const [results, setResults] = useState([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [studentProfiles, setStudentProfiles] = useState(() => {
+    // Pre-cargar el usuario actual desde la sesión para no necesitar request HTTP
+    const u = getSessionUser();
+    if (!u) return {};
+    const id = String(u.id || u.username || '');
+    return id ? { [id]: u.username || u.fullName || id } : {};
+  });
 
   // Efecto para sincronizar tab con query params (si cambian desde URL)
   useEffect(() => {
@@ -208,6 +219,19 @@ export default function EnrolledCourse() {
     };
 
     loadCourse();
+
+    // Poll course data every 15 seconds so new sections, content and assessments appear without refreshing
+    const pollCourse = async () => {
+      try {
+        const response = await courseService.getCourse(id);
+        const updated = response.data?.course || null;
+        if (updated) setCourse(updated);
+      } catch {
+        // silently ignore poll errors
+      }
+    };
+    const intervalId = setInterval(pollCourse, 15000);
+    return () => clearInterval(intervalId);
   }, [id]);
 
   useEffect(() => {
@@ -221,7 +245,46 @@ export default function EnrolledCourse() {
     };
 
     loadResults();
+
+    // Poll own results every 15 seconds so new grades appear without refreshing
+    const pollResults = async () => {
+      try {
+        const response = await assessmentService.getCourseResultsForUser(id, currentUserId);
+        setResults(Array.isArray(response.data?.results) ? response.data.results : []);
+      } catch {
+        // silently ignore poll errors
+      }
+    };
+    const intervalId = setInterval(pollResults, 15000);
+    return () => clearInterval(intervalId);
   }, [id, currentUserId]);
+
+  // Cargar perfiles de estudiantes cuando se abre el tab de participantes
+  useEffect(() => {
+    if (activeTab !== 'participants' || !course) return;
+    const ids = course.enrolledStudentIds || [];
+    const missing = ids.filter((sid) => !studentProfiles[sid]);
+    if (missing.length === 0) return;
+
+    setLoadingParticipants(true);
+    Promise.all(
+      missing.map(async (sid) => {
+        try {
+          const response = await userService.getProfile(sid);
+          const u = response.data?.user;
+          return [sid, u ? (u.username || u.fullName || sid) : sid];
+        } catch {
+          return [sid, sid];
+        }
+      })
+    ).then((entries) => {
+      setStudentProfiles((prev) => ({
+        ...prev,
+        ...Object.fromEntries(entries)
+      }));
+      setLoadingParticipants(false);
+    });
+  }, [activeTab, course]);
 
   const isEnrolled = useMemo(() => {
     if (!course) return false;
@@ -232,8 +295,9 @@ export default function EnrolledCourse() {
   const resultsByAssessmentId = useMemo(() => {
     const map = new Map();
     for (const result of results) {
-      if (!map.has(result.assessmentId)) {
-        map.set(result.assessmentId, result);
+      const key = result.evalId || result.assessmentId;
+      if (key && !map.has(key)) {
+        map.set(key, result);
       }
     }
     return map;
@@ -287,7 +351,7 @@ export default function EnrolledCourse() {
     );
   }
 
-  const participants = buildParticipants(course, currentUser);
+  const participants = buildParticipants(course, currentUser, studentProfiles);
 
   return (
     <div className="enrolled-course-page">
@@ -347,6 +411,14 @@ export default function EnrolledCourse() {
       ) : null}
 
       {activeTab === 'participants' ? (
+        loadingParticipants ? (
+          <section className="enrolled-card">
+            <div className="loading-screen loading-screen-inline">
+              <div className="loading-spinner" />
+              <p>Cargando participantes...</p>
+            </div>
+          </section>
+        ) : (
         <section className="enrolled-card enrolled-grid">
           <article>
             <h2>Docente</h2>
@@ -395,6 +467,7 @@ export default function EnrolledCourse() {
             </div>
           </article>
         </section>
+        )
       ) : null}
 
       {activeTab === 'assessments' ? (

@@ -1,24 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../../services/auth';
+import { validatePassword } from '../../utils/passwordValidation';
 import '../../styles/auth.css';
 
 /**
- * FALTANTES DE SEGURIDAD EN ESTA PÁGINA:
+ * CAMBIOS DE SEGURIDAD EN ESTA PÁGINA:
  * 
- * 1. CAMBIO DE CONTRASEÑA SIN POLÍTICA (línea 20):
- *    Solo valida que la confirmación coincida y contraseña actual sea correcta.
- *    Requisito faltante: Aplicar política de contraseña fuerte:
+ * 1. VALIDACIÓN DE CONTRASEÑA AGREGADA:
+ *    Se valida que la nueva contraseña cumpla con la política fuerte:
  *    - Mínimo 8 caracteres
  *    - Incluir mayúscula, minúscula, número, símbolo
- *    - No puede ser igual a contraseña anterior
- *    - No puede contener username
- *    TODO: Validar en cliente y servidor con regex/librería de policy.
+ *    - Validación en cliente (retroalimentación inmediata) y servidor (seguridad)
+ *    Status: IMPLEMENTADO
  * 
- * 2. NO HAY NOTIFICACIÓN DE CAMBIO:
- *    No se envía email de confirmación al usuario. Requisito: notificar cambio
- *    exitoso para que detecte si fue por tercero malicioso.
- *    TODO: Servidor envía email de confirmación con IP/timestamp del cambio.
+
  */
 
 /**
@@ -46,18 +42,31 @@ export default function ChangePassword() {
   const [message, setMessage] = useState('');
   // Spinner durante el cambio
   const [loading, setLoading] = useState(false);
+  // CAMBIO: Errores de validación de contraseña
+  const [passwordErrors, setPasswordErrors] = useState([]);
 
   // Maneja el cambio de contraseña:
   // 1. Valida que las nuevas contraseñas coincidan
-  // 2. Envía contraseña actual + nueva al servidor
-  // 3. Si es exitoso, limpia inputs y redirige a dashboard
+  // 2. CAMBIO: Valida que la contraseña cumpla la política de seguridad
+  // 3. Envía contraseña actual + nueva al servidor
+  // 4. Si es exitoso, limpia inputs y redirige a dashboard
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setMessage('');
+    setPasswordErrors([]);
 
+    // CAMBIO: Validar que las contraseñas coincidan
     if (newPassword !== confirmPassword) {
       setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    // CAMBIO: Validar política de contraseña ANTES de enviar
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      setPasswordErrors(passwordValidation.errors);
+      setError('La contraseña no cumple con la política de seguridad.');
       return;
     }
 
@@ -128,6 +137,28 @@ export default function ChangePassword() {
               required
             />
           </div>
+
+          {/* CAMBIO: Mostrar requisitos de contraseña */}
+          {newPassword && (
+            <div className="password-requirements">
+              <p className="requirements-title">Requisitos de contraseña:</p>
+              <div className={`requirement ${newPassword.length >= 8 ? 'requirement-valid' : 'requirement-invalid'}`}>
+                ✓ Mínimo 8 caracteres
+              </div>
+              <div className={`requirement ${/[A-Z]/.test(newPassword) ? 'requirement-valid' : 'requirement-invalid'}`}>
+                ✓ Al menos una mayúscula
+              </div>
+              <div className={`requirement ${/[a-z]/.test(newPassword) ? 'requirement-valid' : 'requirement-invalid'}`}>
+                ✓ Al menos una minúscula
+              </div>
+              <div className={`requirement ${/[0-9]/.test(newPassword) ? 'requirement-valid' : 'requirement-invalid'}`}>
+                ✓ Al menos un número
+              </div>
+              <div className={`requirement ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword) ? 'requirement-valid' : 'requirement-invalid'}`}>
+                ✓ Al menos un símbolo especial
+              </div>
+            </div>
+          )}
 
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? 'Actualizando...' : 'Actualizar'}

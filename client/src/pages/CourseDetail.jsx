@@ -68,8 +68,10 @@ export default function CourseDetail() {
    * Cómo: Llama a registerInCourse() y actualiza el estado.
    * Por qué: Permite que el usuario acceda a la vista de estudiante.
    */
-  const handleEnroll = async () => {
-    try {
+  const handleEnroll = async () => {    if (course?.isFinished) {
+      setError('No se puede matricular en un curso que ha terminado.');
+      return;
+    }    try {
       await enrollmentService.enrollCourse(id);
       setIsEnrolled(true);
     } catch (err) {
@@ -115,6 +117,7 @@ export default function CourseDetail() {
             {course.isFinished ? (
               <>
                 <div className="enrolled-badge finished-badge">Este curso ha terminado</div>
+                <p className="finished-note">La fecha de finalización de este curso ya ha pasado. No se pueden aceptar nuevas matriculaciones.</p>
                 {course.createdByCurrentUser ? (
                   <Link to={`/courses/${course.id}/manage`} className="btn-primary manage-course-btn">Ver gestión del curso</Link>
                 ) : isEnrolled ? (

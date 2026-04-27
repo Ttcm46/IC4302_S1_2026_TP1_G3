@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { courseService } from '../services/auth';
+import { courseService, userService } from '../services/auth';
 import '../styles/course-members.css';
 
 /**
@@ -43,9 +43,11 @@ export default function ManageCourseMembers() {
   const [students, setStudents] = useState([]);
   const [teacherUser, setTeacherUser] = useState(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadMembers = async () => {
+      setLoading(true);
       setError('');
       try {
         const [courseResponse, membersResponse] = await Promise.all([
@@ -54,15 +56,48 @@ export default function ManageCourseMembers() {
         ]);
 
         setCourse(courseResponse.data?.course || null);
-        setStudents(Array.isArray(membersResponse.data?.students) ? membersResponse.data.students : []);
         setTeacherUser(membersResponse.data?.teacher || null);
+
+        const rawStudents = Array.isArray(membersResponse.data?.students) ? membersResponse.data.students : [];
+
+        // Enriquecer con perfiles reales en paralelo
+        const enriched = await Promise.all(
+          rawStudents.map(async (student) => {
+            if (student.username !== student.userId) return student;
+            try {
+              const res = await userService.getProfile(student.userId);
+              const u = res.data?.user;
+              if (u) {
+                return { ...student, username: u.username || student.userId, fullName: u.fullName || u.username || student.userId, avatar: u.avatar || '' };
+              }
+            } catch { /* fallback */ }
+            return student;
+          })
+        );
+        setStudents(enriched);
       } catch (err) {
         setError(err.response?.data?.message || 'No fue posible cargar los miembros del curso.');
+      } finally {
+        setLoading(false);
       }
     };
 
     loadMembers();
   }, [id]);
+
+  if (loading) {
+    return (
+      <div className="manage-members-page">
+        <button type="button" className="back-button" onClick={() => navigate('/dashboard')}>
+          ← Volver
+        </button>
+        <div className="loading-screen">
+          <div className="loading-spinner" />
+          <p>Cargando miembros del curso...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!course) {
     return (

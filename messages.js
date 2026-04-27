@@ -26,9 +26,10 @@ const MessageSchema = new Schema(
 			type: String,
 			required: true,
 		},
-		read: {
+		// implementación de mensajes leídos
+		isRead: {
 			type: Boolean,
-			required: false,
+			default: false,
 		},
 	},
 	{ timestamps: true },
@@ -45,7 +46,30 @@ async function createMessage({fromUserId, toUserId, content}) {
 }
 
 async function getInboxMessages(userId) {
-  return Message.find({ toUserId: userId }).sort({ createdAt: -1 }).lean();
+  // Obtener tanto mensajes recibidos como enviados
+  const allMessages = await Message.find({
+    $or: [
+      { toUserId: userId },      // Mensajes recibidos
+      { fromUserId: userId }     // Mensajes enviados
+    ]
+  }).sort({ createdAt: -1 }).lean();
+
+  // Deduplicar por conversación: para cada contacto, mantener solo el mensaje más reciente
+  const conversationMap = new Map();
+  for (const msg of allMessages) {
+    // Determinar quién es el "otro" usuario en la conversación
+    const otherUserId = msg.fromUserId === userId ? msg.toUserId : msg.fromUserId;
+    
+    // Si esta conversación aún no está en el mapa, agregarla
+    if (!conversationMap.has(otherUserId)) {
+      conversationMap.set(otherUserId, msg);
+    }
+  }
+
+  // Convertir el mapa en array ordenado por fecha descendente
+  return Array.from(conversationMap.values()).sort((a, b) => 
+    new Date(b.createdAt) - new Date(a.createdAt)
+  );
 }
 
 async function getConversationMessages(userId, otherUserId) {
@@ -59,4 +83,30 @@ async function getConversationMessages(userId, otherUserId) {
     .lean();
 }
 
-export { MessageSchema, Message, createMessage, getInboxMessages, getConversationMessages };
+async function clearAllMessages() {
+  const result = await Message.deleteMany({});
+  return result;
+}
+
+async function markMessagesAsRead(userId, otherUserId) {
+  const result = await Message.updateMany(
+    {
+      toUserId: userId,
+      fromUserId: otherUserId,
+      isRead: false
+    },
+    { isRead: true }
+  );
+  return result;
+}
+
+async function getUnreadCount(userId, otherUserId) {
+  const count = await Message.countDocuments({
+    toUserId: userId,
+    fromUserId: otherUserId,
+    isRead: false
+  });
+  return count;
+}
+
+export { MessageSchema, Message, createMessage, getInboxMessages, getConversationMessages, clearAllMessages, markMessagesAsRead, getUnreadCount };

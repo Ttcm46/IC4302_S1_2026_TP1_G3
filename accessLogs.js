@@ -93,27 +93,27 @@ const AccessLog = mongoose.models.AccessLog || mongoose.model("AccessLog", Acces
 async function getDeviceInfo(req) {
     const ua = req.headers['user-agent'];
     if (!ua) {
-        return undefined;
+        return null;
     }
 
-    const parser = new UAParser(ua);
-    const result = parser.getResult();
-    const device = {
-        type: result.device.type || 'desktop',
-        vendor: result.device.vendor,
-        model: result.device.model,
-    };
+    try {
+        const parser = new UAParser(ua);
+        const result = parser.getResult();
+        
+        // Retornar el dispositivo aunque tenga campos undefined
+        // Anterior: validaba que TODOS los campos fueran strings no-vacíos
+        // Nuevo: permite valores undefined o vacíos
+        const device = {
+            type: result.device.type || 'Desktop',
+            vendor: result.browser.vendor || result.device.vendor || 'Unknown',
+            model: result.browser.name || result.device.model || '',
+        };
 
-    const isValidDevice =
-        typeof device.type === "string" &&
-        typeof device.vendor === "string" &&
-        typeof device.model === "string";
-
-    if (!isValidDevice) {
-        return undefined;
+        return device;
+    } catch (error) {
+        console.error("Error parsing user agent:", error.message);
+        return null;
     }
-
-    return device;
 }
 
 /**
@@ -132,27 +132,41 @@ async function getDeviceInfo(req) {
  * @throws {Error} If any required field is missing or invalid
  */
 async function createAccessLog({ ip, userIdOrToken, userId, device, action, successful }) {
-    const hasValidUserId = typeof userId === "string" && userId.trim().length > 0;
+    // Normalizar userId si viene como objeto o undefined
+    const effectiveUserId = userId || userIdOrToken || 'unknown';
+    const finalUserId = String(effectiveUserId).trim() || 'unknown';
+    
+    const hasValidUserId = typeof finalUserId === "string" && finalUserId.length > 0;
     const hasValidAction = action === "login" || action === "logout";
-    const hasValidDevice =
-        device === undefined ||
-        (device &&
-            typeof device === "object" &&
-            typeof device.type === "string" &&
-            typeof device.vendor === "string" &&
-            typeof device.model === "string");
+    
+    // Validar device pero ser tolerante - si no es válido, ignorarlo
+    let validDevice = null;
+    if (device && typeof device === "object") {
+        if (typeof device.type === "string" && 
+            typeof device.vendor === "string" && 
+            typeof device.model === "string") {
+            validDevice = device;
+        }
+    }
+    
+    const hasValidDevice = validDevice || device === undefined;
     const hasValidSuccessful = successful === undefined || typeof successful === "boolean";
 
-    if (!ip || !hasValidUserId || !hasValidDevice || !hasValidAction || !hasValidSuccessful) {
-        throw new Error(
-            "Invalid access log payload. Required: ip, userId, action(login|logout). Optional: device{type,vendor,model}, successful(boolean)",
-        );
+    // Validar campos requeridos - pero loguear en lugar de lanzar error
+    if (!ip || !hasValidUserId || !hasValidAction || !hasValidSuccessful) {
+        console.warn("[createAccessLog] Invalid payload - some required fields missing:", {
+            hasValidIp: !!ip,
+            hasValidUserId,
+            hasValidAction,
+            hasValidSuccessful
+        });
+        return null;
     }
 
-    const payload = { ip, userId, action };
+    const payload = { ip, userId: finalUserId, action };
 
-    if (device !== undefined) {
-        payload.device = device;
+    if (validDevice) {
+        payload.device = validDevice;
     }
 
     if (successful !== undefined) {

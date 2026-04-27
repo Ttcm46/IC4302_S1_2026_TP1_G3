@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { isAuthenticated as hasSession } from './services/session';
 import './styles/index.css';
 import Layout from './components/Layout';
+import ProtectedAdminRoute from './components/ProtectedAdminRoute';
 import Home from './pages/Home';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -26,6 +27,7 @@ import AssessmentAttempt from './pages/AssessmentAttempt';
 import AssessmentResult from './pages/AssessmentResult';
 import Community from './pages/Community';
 import Messaging from './pages/Messaging';
+import AdminLogs from './pages/AdminLogs';
 
 function isAuthenticated() {
   return hasSession();
@@ -66,6 +68,13 @@ function App() {
         <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
         <Route path="/create-course" element={<ProtectedRoute><Layout><CreateCourse /></Layout></ProtectedRoute>} />
         <Route path="/change-password" element={<ProtectedRoute><Layout><ChangePassword /></Layout></ProtectedRoute>} />
+        
+        {/* NUEVA RUTA: Panel de administración - Solo para admins */}
+        <Route path="/admin/logs" element={
+          <ProtectedAdminRoute>
+            <Layout><AdminLogs /></Layout>
+          </ProtectedAdminRoute>
+        } />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

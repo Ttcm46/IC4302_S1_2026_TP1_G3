@@ -1,7 +1,7 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/auth';
-import { clearSession, isAuthenticated } from '../services/session';
+import { clearSession, isAuthenticated, getSessionUser } from '../services/session';
 import '../styles/layout.css';
 
 /**
@@ -20,7 +20,18 @@ import '../styles/layout.css';
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
-  const hasSession = isAuthenticated();
+  const location = useLocation();
+  const [hasSession, setHasSession] = useState(isAuthenticated());
+  // CAMBIO: Agregar estado para usuario (necesario para verificar si es admin)
+  const [user, setUser] = useState(getSessionUser());
+
+  // Actualizar hasSession cuando cambia la ruta o se detecta cambio en autenticación
+  useEffect(() => {
+    setHasSession(isAuthenticated());
+    // CAMBIO: Actualizar usuario también
+    setUser(getSessionUser());
+  }, [location.pathname]);
+
   const homePath = hasSession ? '/dashboard' : '/';
 
   const handleLogout = async () => {
@@ -30,6 +41,7 @@ export default function Layout({ children }) {
       // Continue with local cleanup even if backend logout fails.
     } finally {
       clearSession();
+      setHasSession(false);
       window.location.href = '/login';
     }
   };
@@ -47,6 +59,10 @@ export default function Layout({ children }) {
             {hasSession ? (
               <>
                 <a href="/social">Comunidad</a>
+                {/* CAMBIO: Agregar link a Registros solo si usuario es admin */}
+                {user?.role === 'admin' && (
+                  <a href="/admin/logs" className="admin-link">Registros</a>
+                )}
                 <a href="/profile">Ver Perfil</a>
                 <button onClick={handleLogout} className="btn-secondary">
                   Cerrar Sesión
@@ -68,7 +84,7 @@ export default function Layout({ children }) {
 
       <footer className="footer">
         <div className="footer-container">
-          <p>&copy; 2024 TEC Digitalito. Todos los derechos reservados.</p>
+          <p>&copy; 2026 TEC Digitalito. Todos los derechos reservados.</p>
         </div>
       </footer>
     </div>
