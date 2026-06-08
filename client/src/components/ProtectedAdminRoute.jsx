@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { getSessionUser, isAuthenticated } from '../services/session';
 
 /**
- * COMPONENTE: ProtectedAdminRoute
+ * ProtectedAdminRoute
  * 
  * Propósito: Proteger rutas que solo pueden acceder administradores
  * 

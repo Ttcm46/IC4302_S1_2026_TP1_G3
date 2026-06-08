@@ -1,6 +1,6 @@
 services:
   #nodos RVDB
-  ravendb-node1 :
+  ravendb-node1:
     image: ravendb/ravendb:latest
     container_name: ravendb1
     ports:
@@ -18,9 +18,8 @@ services:
       timeout: 10s
       retries: 20
       start_period: 60s
-    # volumes:
-    #  - ravendb_data:/opt/RavenDB/Server/RavenData
-  ravendb-node2 :
+
+  ravendb-node2:
     image: ravendb/ravendb:latest
     container_name: ravendb2
     ports:
@@ -32,7 +31,8 @@ services:
       - RAVEN_Security_UnsecuredAccessAllowed=PublicNetwork
     networks:
       - app-network
-  ravendb-node3 :
+
+  ravendb-node3:
     image: ravendb/ravendb:latest
     container_name: ravendb3
     ports:
@@ -44,7 +44,6 @@ services:
       - RAVEN_Security_UnsecuredAccessAllowed=PublicNetwork
     networks:
       - app-network
-    
 
   #Redis cluster
   redis-node-1:
@@ -53,9 +52,9 @@ services:
     ports:
       - "7001:6379"
       - "17001:16379"
-    
     networks:
       - app-network
+
   redis-node-2:
     image: redis:latest
     command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
@@ -67,12 +66,12 @@ services:
 
   redis-node-3:
     image: redis:latest
-    networks:
-      - app-network
     command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
     ports:
       - "7003:6379"
       - "17003:16379"
+    networks:
+      - app-network
 
   redis-cluster-creator:
     image: redis:latest
@@ -80,12 +79,11 @@ services:
       - redis-node-1
       - redis-node-2
       - redis-node-3
-    # Wait for nodes to start, then creat
     networks:
       - app-network
     entrypoint: >
-      sh -c "sleep 5 && redis-cli --cluster create 
-      redis-node-1:6379 redis-node-2:6379 redis-node-3:6379 
+      sh -c "sleep 5 && redis-cli --cluster create
+      redis-node-1:6379 redis-node-2:6379 redis-node-3:6379
       --cluster-replicas 0 --cluster-yes"
 
   redis:
@@ -96,31 +94,23 @@ services:
     networks:
       - app-network
     healthcheck:
-        test: ["CMD", "redis-cli", "ping"]
-        interval: 5s
-        timeout: 3s
-        retries: 10
-  redisinsight: ##UI
-    networks:
-      - app-network
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redisinsight:
     image: redis/redisinsight:latest
     container_name: redisinsight
     ports:
-      - "32771:5540" 
-  # neo4j:
-  #   image: neo4j:latest
-  #   container_name: neo4j
-  #   ports:
-  #     - "7474:7474" # HTTP
-  #     - "7687:7687" # Bolt
-  #   environment:
-  #     - NEO4J_AUTH=none
-  #   networks:
-  #     - app-network
+      - "32771:5540"
+    networks:
+      - app-network
+
   mongo-node-1:
-    image: mongo:latest
+    image: mongo:7
     container_name: mongo-node-1
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip", "0.0.0.0"]
     ports:
       - "27017:27017"
     volumes:
@@ -135,9 +125,9 @@ services:
       start_period: 20s
 
   mongo-node-2:
-    image: mongo:latest
+    image: mongo:7
     container_name: mongo-node-2
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip", "0.0.0.0"]
     ports:
       - "27018:27017"
     volumes:
@@ -152,9 +142,9 @@ services:
       start_period: 20s
 
   mongo-node-3:
-    image: mongo:latest
+    image: mongo:7
     container_name: mongo-node-3
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip", "0.0.0.0"]
     ports:
       - "27019:27017"
     volumes:
@@ -169,27 +159,21 @@ services:
       start_period: 20s
 
   mongo-setup:
-    image: mongo:latest
+    image: mongo:7
     depends_on:
       mongo-node-1:
-        condition: service_started
+        condition: service_healthy
       mongo-node-2:
-        condition: service_started
+        condition: service_healthy
       mongo-node-3:
-        condition: service_started
+        condition: service_healthy
     networks:
       - app-network
-    restart: "no"
+    restart: on-failure
     entrypoint:
       - bash
       - -lc
       - |
-        for host in mongo-node-1 mongo-node-2 mongo-node-3; do
-          until mongosh --host "$$host" --quiet --eval "db.adminCommand('ping')" >/dev/null 2>&1; do
-            sleep 2
-          done
-        done
-
         mongosh --host mongo-node-1 --quiet --eval '
           try {
             rs.status();
@@ -203,20 +187,25 @@ services:
                 { _id: 2, host: "mongo-node-3:27017" }
               ]
             });
+            print("Replica set initialized");
           }
         '
 
         until mongosh --host mongo-node-1 --quiet --eval "db.hello().isWritablePrimary" | grep -q true; do
+          echo "Waiting for primary..."
           sleep 2
         done
+        echo "Primary is ready."
+
   mailpit:
     image: axllent/mailpit:latest
-    ports: 
+    ports:
       - "1025:1025"
       - "8025:8025"
       - "1110:1110"
     networks:
       - app-network
+
   api:
     build: .
     depends_on:
@@ -250,6 +239,3 @@ volumes:
   mongo-node-1-data:
   mongo-node-2-data:
   mongo-node-3-data:
-
-#volumes:
-#  ravendb_data: # TODO

@@ -5,9 +5,7 @@ import { getSessionUser } from '../services/session';
 import '../styles/dashboard.css';
 
 /**
- * ============================================
  * DASHBOARD.JSX - Panel de Control Principal
- * ============================================
  * 
  * Propósito General:
  * Página de inicio para usuarios autenticados. Muestra un resumen personalizado:
@@ -21,10 +19,6 @@ import '../styles/dashboard.css';
  * 2. HorizontalCarousel: Componente reutilizable de carrusel horizontal
  * 3. Componente principal: Ensambla datos y renderiza secciones
  */
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
 
 /**
  * getCurrentUser()

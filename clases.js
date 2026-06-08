@@ -577,9 +577,16 @@ export async function getAllClasses(driver) {
   try {
     const result = await session.run(
       `MATCH (c:Class)
-       RETURN c`,
+       OPTIONAL MATCH (c)-[:HAS_STUDENT]->(s:Student)
+       RETURN c, count(s) as studentCount`,
     );
-    return result.records.map((record) => record.get("c").properties);
+    return result.records.map((record) => {
+      const count = record.get("studentCount");
+      return {
+        ...record.get("c").properties,
+        studentCount: typeof count === 'object' && typeof count.toNumber === 'function' ? count.toNumber() : count,
+      };
+    });
   } finally {
     await session.close();
   }
@@ -596,10 +603,17 @@ export async function getCreatedClasses(driver, creatorId) {
   try {
     const result = await session.run(
       `MATCH (c:Class {creatorId: $creatorId})
-       RETURN c`,
+       OPTIONAL MATCH (c)-[:HAS_STUDENT]->(s:Student)
+       RETURN c, count(s) as studentCount`,
       { creatorId },
     );
-    return result.records.map((record) => record.get("c").properties);
+    return result.records.map((record) => {
+      const count = record.get("studentCount");
+      return {
+        ...record.get("c").properties,
+        studentCount: typeof count === 'object' && typeof count.toNumber === 'function' ? count.toNumber() : count,
+      };
+    });
   } finally {
     await session.close();
   }

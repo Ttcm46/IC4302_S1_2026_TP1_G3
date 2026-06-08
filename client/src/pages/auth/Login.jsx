@@ -5,26 +5,6 @@ import { setSession } from '../../services/session';
 import '../../styles/auth.css';
 
 /**
- * FALTANTES DE SEGURIDAD EN ESTA PÁGINA:
- * 
- * 1. CHECKBOX "RECORDARME" SIN EFECTO (línea 12):
- *    Existe en UI pero no afecta el almacenamiento. Requisito: aumentar duración
- *    de refresh token a 14 días si está marcado, usando httpOnly cookies.
- *    TODO: Pasar rememberMe al backend, devolver cookie con duración diferente.
- * 
- * 2. NO HAY BLOQUEO POR INTENTOS (línea 34):
- *    Usuario puede intentar login ilimitadamente. Requisito: bloquear tras 5 intentos
- *    fallidos durante 30 min, mostrar contador, notificar por email.
- *    TODO: Backend debe rechazar login si account está bloqueado, incrementar contador
- *    de intentos fallidos, guardar timestamp de último intento.
- * 
- * 3. NO HAY AUDITORÍA DE LOGIN (línea 34):
- *    No se registra fecha, hora, IP de login exitoso. Requisito: guardar en tabla
- *    de auditoría para que usuario vea historial de accesos.
- *    TODO: Servidor registra cada login exitoso con timestamp e IP del cliente.
- */
-
-/**
  * Página de Login - Autenticación de usuario
  * 
  * Flujo:

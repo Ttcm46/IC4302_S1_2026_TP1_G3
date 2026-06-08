@@ -4,6 +4,33 @@ import { messageService, userService } from '../services/auth';
 import { getSessionUser } from '../services/session';
 import '../styles/messaging.css';
 
+/**
+ * Messaging.jsx - Sistema de Mensajería Directa entre Usuarios
+ * 
+ * Propósito:
+ * Permitir que los usuarios envíen y reciban mensajes privados, ver historial de conversaciones,
+ * gestionar una lista de contactos con indicadores de mensajes no leídos y sincronizar en tiempo real.
+ * 
+ * Características:
+ * - Vista de dos paneles: sidebar con lista de contactos e inbox principal con conversación
+ * - Carga y enriquecimiento dinámico de contactos con perfiles de usuario (nombre, avatar)
+ * - Envío y recepción de mensajes con timestamp e indicador de lectura
+ * - Marca automática de mensajes como leídos al abrir conversación
+ * - Polling cada 10 segundos para sincronizar inbox y conversación activa
+ * - Contador de mensajes no leídos en cada contacto
+ * - Auto-scroll automático al final de la conversación
+ * - URL param targetId permite abrir conversación directa desde otra página
+ * 
+ * Flujo:
+ * 1. Cargar inbox al montar componente (lista de conversaciones)
+ * 2. Enriquecer cada contacto obteniendo nombre y avatar de su perfil
+ * 3. Si hay targetId en URL, precargar esa conversación
+ * 4. Usuario selecciona contacto: cargar mensajes y marcar como leídos
+ * 5. Polling cada 10s: actualizar inbox y conversación activa en background
+ * 6. Usuario escribe y envía mensaje: POST al backend, recargar conversación
+ * 7. Auto-scroll mantiene vista en último mensaje
+ */
+
 export default function Messaging() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -29,7 +56,7 @@ export default function Messaging() {
   const [sendError, setSendError] = useState('');
   const streamRef = useRef(null);
 
-  // Keep ref in sync for polling closure
+  // Sincroniza ref con estado para que el polling tenga acceso al contacto activo sin recrear closures.
   useEffect(() => {
     activeContactIdRef.current = activeContactId;
   }, [activeContactId]);
@@ -41,6 +68,9 @@ export default function Messaging() {
     }
   }, [conversation]);
 
+  // Obtiene el perfil de un usuario por ID y extrae nombre y avatar para enriquecer el contacto.
+  // Si falla la llamada, usa el fallbackName y deja avatar vacío.
+  // Necesario porque la lista de contactos del inbox no incluye nombre ni avatar.
   const enrichContact = async (id, fallbackName) => {
     try {
       const res = await userService.getProfile(id);
@@ -55,6 +85,10 @@ export default function Messaging() {
     }
   };
 
+  // Construye lista de contactos a partir del array de mensajes del inbox.
+  // Agrupa mensajes por usuario (identificando quién es "el otro"), elimina auto-conversaciones,
+  // extrae último mensaje e identifica cuántos no han sido leídos.
+  // Devuelve array de contactos con estructura: id, lastMessage, createdAt, unreadCount.
   const buildContactsFromInbox = (messages) => {
     const map = new Map();
     for (const msg of messages) {
@@ -82,6 +116,9 @@ export default function Messaging() {
     return [...map.values()];
   };
 
+  // Carga el inbox del usuario actual desde el backend y enriquece cada contacto con su perfil.
+  // Si se proporcionó initialTargetId en URL pero no está en inbox, lo agrega al inicio.
+  // Maneja errores silenciosamente devolviendo lista vacía.
   const loadInbox = async () => {
     setInboxLoading(true);
     try {
@@ -109,6 +146,9 @@ export default function Messaging() {
     }
   };
 
+  // Carga los mensajes de una conversación específica y marca automáticamente como leídos.
+  // Actualiza el estado de conversación y limpia el contador de no leídos del contacto.
+  // Maneja errores capturando y registrando sin interrumpir la interfaz.
   const loadConversation = async (contactId) => {
     if (!contactId) return;
     setConvLoading(true);
@@ -141,7 +181,7 @@ export default function Messaging() {
     loadInbox();
     if (initialTargetId) loadConversation(initialTargetId);
 
-    // Poll: refresh inbox contact list + active conversation every 10s
+    // Poll: refrescar inbox y conversación activa cada 10 segundos para mantener sincronización en tiempo real.
     const intervalId = setInterval(async () => {
       try {
         const response = await messageService.getInbox();
@@ -205,6 +245,9 @@ export default function Messaging() {
     }
   }, [contacts, activeContactId, activeContactName]);
 
+  // Cambia el contacto activo cuando el usuario hace clic en la lista.
+  // Limpia la conversación anterior y errores para que se cargue la nueva conversación.
+  // Ignora clics redundantes si ya está seleccionado el mismo contacto.
   const handleSelectContact = (contact) => {
     if (contact.id === activeContactId) return;
     setActiveContactId(contact.id);
@@ -213,6 +256,9 @@ export default function Messaging() {
     setSendError('');
   };
 
+  // Envía un mensaje al contacto activo después de validar que no esté vacío.
+  // POST al backend, limpia el input, recarga conversación y actualiza último mensaje en sidebar.
+  // Muestra mensaje de error si algo falla, pero permite reintentar sin perder el texto.
   const handleSend = async (event) => {
     event.preventDefault();
     const content = messageText.trim();

@@ -1,6 +1,7 @@
 import express, { json } from "express";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
+dotenv.config(); // Load environment variables BEFORE importing other modules
 import crypto from "crypto";
 import { promises as fs } from "fs";
 
@@ -65,8 +66,6 @@ import {
 import { MailpitClientStarter, sendEmail } from "./mailpit.js";
 import { get } from "http";
 import { createMessage, getInboxMessages, getConversationMessages, clearAllMessages, markMessagesAsRead, getUnreadCount } from "./messages.js";
-
-dotenv.config();
 //constantes de cleintes de acceso de BD para reciclarlos segun se necesite
 let store = null;
 let RDclient = null;
@@ -93,6 +92,19 @@ app.use((err, req, res, next) => {
     message: "Internal server error",
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
+});
+
+// Middleware de debugging para capturar headers en login/logout
+app.use((req, res, next) => {
+  if (req.path === '/login' || req.path === '/logout') {
+    console.log(`[${req.method}] ${req.path}`);
+    console.log('Headers recibidos:', {
+      'user-agent': req.headers['user-agent'],
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      'all-headers': req.headers
+    });
+  }
+  next();
 });
 
 // Handle unhandled promise rejections
@@ -162,7 +174,6 @@ app.get("/", (req, res) => {
 
 //------------------------------------------------------------------------------------------------------------------------------------------------
 // usuarios
-//DONE:
 app.post("/users/create", async (req, res) => {
   try {
     const username = req.body.username?.trim();
@@ -225,7 +236,7 @@ app.post("/users/create", async (req, res) => {
   }
 });
 
-//DONE: password reset
+//password reset
 /* Se reemplazó esta parte para integrar la forma de recuperar contraseña del frontend
   app.post("/users/reset", async (req, res) => {
   let tmp = await getUser(req.body.username, store);
@@ -339,12 +350,11 @@ app.post("/users/reset/confirm", async (req, res) => {
     res.status(500).json({ success: false, message: "Error al restablecer la contraseña." });
   }
 });
-//DONE: update password
+//update password
 /**
  * CAMBIO EN ENDPOINT: PUT /users/update/password
  * 
- * Antes no validaba la contraseña
- * Ahora valida que cumpla con la política de seguridad
+ * Validar que cumpla con la política de seguridad
  * 
  * Validaciones:
  * - Mínimo 8 caracteres
@@ -449,12 +459,6 @@ app.get("/users/log", async (req, res) => {
  * - userId: filtrar por ID de usuario específico
  * - action: filtrar por acción (login/logout)
  * - successful: filtrar por estado (true/false)
- * 
- * Cambios vs código anterior:
- * - NUEVO: Este endpoint no existía
- * - Agrega protección de rol admin
- * - Implementa paginación
- * - Implementa filtros
  */
 app.get("/admin/logs", async (req, res) => {
   try {
@@ -1098,7 +1102,7 @@ app.post("/login", async (req, res) => {
         }
       }
       //creds validas
-      else {
+      else if (msg.success === true) {
         try {
           const sessionTTL = req.body.rememberMe ? 14 * 24 * 60 * 60 : 60 * 60;
           
@@ -1931,9 +1935,9 @@ app.listen(PORT, async () => {
       process.env.RAVENDB_URL || "http://localhost:8080",
       process.env.RAVENDB_DB || "test",
     );
-    console.log("✓ RavenDB store initialized successfully");
+    console.log("RavenDB store initialized successfully");
   } catch (error) {
-    console.error("✗ Failed to initialize RavenDB:", error.message);
+    console.error("Failed to initialize RavenDB:", error.message);
   }
 
   // Initialize Redis
@@ -1942,9 +1946,9 @@ app.listen(PORT, async () => {
       process.env.REDIS_URL || "http://localhost:6379",
       process.env.REDIS_DB || "0",
     );
-    console.log("✓ Redis client initialized successfully");
+    console.log("Redis client initialized successfully");
   } catch (error) {
-    console.error("✗ Failed to initialize Redis:", error.message);
+    console.error("Failed to initialize Redis:", error.message);
   }
 
   // Initialize Neo4j
@@ -1954,18 +1958,18 @@ app.listen(PORT, async () => {
       process.env.NEO4J_USER || "neo4j",
       process.env.NEO4J_PASSWORD || "password"
     );
-    console.log("✓ Neo4j driver initialized successfully");
+    console.log("Neo4j driver initialized successfully");
   } catch (error) {
-    console.error("✗ Failed to initialize Neo4j:", error.message);
+    console.error("Failed to initialize Neo4j:", error.message);
   }
 
   // Initialize MongoDB
   try {
     await initializeMongo();
 
-    console.log("✓ MongoDB connected successfully");
+    console.log("MongoDB connected successfully");
   } catch (error) {
-    console.error("✗ Failed to initialize MongoDB:", error.message);
+    console.error("Failed to initialize MongoDB:", error.message);
   }
 
   try {
@@ -1975,7 +1979,7 @@ app.listen(PORT, async () => {
     console.error()
   }
 
-  console.log("\n✓ All database connections initialized successfully!");
+  console.log("\nAll database connections initialized successfully!");
   console.log("Server is ready to accept requests.\n");
 
   //await sendSampleData(neo4jDriver);

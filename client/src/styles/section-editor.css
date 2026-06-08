@@ -119,12 +119,20 @@
 .se-item h3 {
   margin: 0 0 0.2rem;
   font-size: 1rem;
+  min-width: 0;
 }
 
 .se-item > p {
   margin: 0 0 0.55rem;
   color: var(--text-muted);
   font-size: 0.9rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.se-item {
+  min-width: 0;
 }
 
 .se-empty {
@@ -190,6 +198,9 @@
 .se-resource-text {
   margin: 0.2rem 0 0;
   color: var(--text);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .se-resource-pdf-wrapper {
@@ -347,6 +358,54 @@
   .se-panel {
     min-height: unset;
   }
+}
+
+/* ── Text Overflow Fixes ────────────────────────────────────────── */
+/* Ensures all inputs/textareas respect their container boundaries */
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.se-form input,
+.se-form textarea,
+.se-form select {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  width: 100%;
+}
+
+.se-compact-form input,
+.se-compact-form textarea,
+.se-compact-form select {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  width: 100%;
+}
+
+textarea {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="file"] {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 @media (max-width: 640px) {

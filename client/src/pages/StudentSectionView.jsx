@@ -5,9 +5,7 @@ import { getSessionUser } from '../services/session';
 import '../styles/student-section-view.css';
 
 /**
- * =====================================================================
  * STUDENTSECTIONVIEW.JSX - Vista de Detalle de Sección para Estudiantes
- * =====================================================================
  * 
  * Propósito:
  * Muestra una sección/tema específico dentro de un curso matriculado,
@@ -177,9 +175,7 @@ export default function EnrolledSectionDetail() {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [pdfModal, setPdfModal] = useState({ open: false, src: null, title: null });
 
-  // ============================================
   // DATA LOADING
-  // ============================================
   useEffect(() => {
     const loadCourse = async () => {
       setLoadingCourse(true);
@@ -246,9 +242,7 @@ export default function EnrolledSectionDetail() {
     );
   }
 
-  // ============================================
   // EVENT HANDLERS
-  // ============================================
 
   /**
    * handleBack()

@@ -5,22 +5,6 @@ import { validatePassword } from '../../utils/passwordValidation';
 import '../../styles/auth.css';
 
 /**
- * CAMBIOS DE SEGURIDAD EN RESTABLECIMIENTO DE CONTRASEÑA:
- * 
- * 1. VALIDACIÓN DE CONTRASEÑA AGREGADA:
- *    Se valida que la nueva contraseña cumpla con la política fuerte:
- *    - Mínimo 8 caracteres
- *    - Incluir mayúscula, minúscula, número, símbolo
- *    - Validación en cliente (retroalimentación inmediata) y servidor (seguridad)
- *    Status: IMPLEMENTADO
- * 
- * 2. TOKEN DE RECUPERACIÓN CON VALIDACIÓN:
- *    El token se valida en servidor (existencia, expiración, single-use),
- *    y se invalida inmediatamente tras cambio exitoso.
- *    Status: IMPLEMENTADO (servidor)
- */
-
-/**
  * Página de Restablecimiento de Contraseña
  * 
  * Flujo:
@@ -56,7 +40,7 @@ export default function ResetPassword() {
   // Maneja el restablecimiento de contraseña:
   // 1. Valida que el token no esté vacío
   // 2. Valida que las contraseñas coincidan
-  // 3. CAMBIO: Valida que la contraseña cumpla la política de seguridad
+  // 3. Valida que la contraseña cumpla la política de seguridad
   // 4. Envía token + nueva contraseña al servidor
   // 5. Si es exitoso, redirige a login
   const handleSubmit = async (e) => {

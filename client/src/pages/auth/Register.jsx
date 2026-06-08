@@ -163,10 +163,10 @@ export default function Register() {
               <div className="password-requirements" role="status" aria-live="polite">
                 <div className="requirements-title">Requisitos de contraseña:</div>
                 {passwordErrors.length === 0 ? (
-                  <div className="requirement requirement-valid">✓ Contraseña válida</div>
+                  <div className="requirement requirement-valid">Contraseña válida</div>
                 ) : (
                   passwordErrors.map((error, idx) => (
-                    <div key={idx} className="requirement requirement-invalid">✗ {error}</div>
+                    <div key={idx} className="requirement requirement-invalid">{error}</div>
                   ))
                 )}
               </div>

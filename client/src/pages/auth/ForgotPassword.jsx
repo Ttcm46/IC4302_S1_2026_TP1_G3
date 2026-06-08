@@ -3,21 +3,6 @@ import { authService } from '../../services/auth';
 import '../../styles/auth.css';
 
 /**
- * SEGURIDAD EN RECUPERACIÓN DE CONTRASEÑA:
- * 
- * 1. TOKEN DE RECUPERACIÓN SEGURO:
- *    Servidor genera token criptográficamente aleatorio (32 bytes),
- *    lo asocia a email con expiración de 5 minutos,
- *    es válido solo una vez, se invalida tras primer uso exitoso.
- *    Status: IMPLEMENTADO (servidor)
- * 
- * 2. VALIDACIÓN DE NUEVA CONTRASEÑA:
- *    En ResetPassword se valida que cumpla con política fuerte
- *    (8+ chars, mayús, minús, número, símbolo)
- *    Status: IMPLEMENTADO
- */
-
-/**
  * Página de Recuperación de Contraseña
  * 
  * Flujo:

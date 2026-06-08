@@ -6,14 +6,15 @@ const { Schema } = mongoose;
 /**
  * Initializes MongoDB connection using Mongoose
  * @async
- * @param {string} [uri=process.env.MONGO_URI || "mongodb://root:admin@mongo:27017/?authSource=admin"] - MongoDB connection URI
+ * @param {string} [uri] - MongoDB connection URI. Defaults to MONGO_URI env var or localhost cluster
  * @returns {Promise<mongoose.Connection>} The established MongoDB connection
  * @throws {Error} If connection fails within serverSelectionTimeoutMS
  */
-async function initializeMongo(
-    uri = process.env.MONGO_URI || "mongodb://root:admin@mongo:27017/?authSource=admin",
-) {
-    await mongoose.connect(uri, {
+async function initializeMongo(uri) {
+    const mongoUri = uri || process.env.MONGO_URI || "mongodb://localhost:27017/?directConnection=true";
+    
+
+    await mongoose.connect(mongoUri, {
         serverSelectionTimeoutMS: 5000,
     });
 
@@ -90,29 +91,42 @@ const AccessLogSchema = new Schema(
 const AccessLog = mongoose.models.AccessLog || mongoose.model("AccessLog", AccessLogSchema);
 
 
-async function getDeviceInfo(req) {
-    const ua = req.headers['user-agent'];
-    if (!ua) {
-        return null;
-    }
-
+function getDeviceInfo(req) {
     try {
+        const ua = req.headers['user-agent'];
+        console.log('[getDeviceInfo] User-Agent header:', ua);
+        
+        if (!ua) {
+            console.log('[getDeviceInfo] No User-Agent header, retornando device default');
+            return {
+                type: 'Desktop',
+                vendor: 'Unknown',
+                model: 'Unknown'
+            };
+        }
+
         const parser = new UAParser(ua);
         const result = parser.getResult();
         
-        // Retornar el dispositivo aunque tenga campos undefined
-        // Anterior: validaba que TODOS los campos fueran strings no-vacíos
-        // Nuevo: permite valores undefined o vacíos
+        console.log('[getDeviceInfo] UAParser result:', JSON.stringify(result, null, 2));
+        
+        // Construir objeto device con valores seguros
         const device = {
-            type: result.device.type || 'Desktop',
-            vendor: result.browser.vendor || result.device.vendor || 'Unknown',
-            model: result.browser.name || result.device.model || '',
+            type: result.device?.type || 'Desktop',
+            vendor: result.browser?.name || result.device?.vendor || 'Unknown',
+            model: result.os?.name || result.device?.model || 'Unknown',
         };
 
+        console.log('[getDeviceInfo] Device construido:', device);
         return device;
     } catch (error) {
-        console.error("Error parsing user agent:", error.message);
-        return null;
+        console.error("[getDeviceInfo] Error parsing user agent:", error.message);
+        // Retornar device default en caso de error
+        return {
+            type: 'Desktop',
+            vendor: 'Unknown',
+            model: 'Unknown'
+        };
     }
 }
 
@@ -139,20 +153,30 @@ async function createAccessLog({ ip, userIdOrToken, userId, device, action, succ
     const hasValidUserId = typeof finalUserId === "string" && finalUserId.length > 0;
     const hasValidAction = action === "login" || action === "logout";
     
-    // Validar device pero ser tolerante - si no es válido, ignorarlo
+    // Validar device - ser tolerante con valores vacíos
     let validDevice = null;
     if (device && typeof device === "object") {
+        // Todos los campos deben ser strings (no undefined, no null)
         if (typeof device.type === "string" && 
             typeof device.vendor === "string" && 
             typeof device.model === "string") {
             validDevice = device;
+            console.log('[createAccessLog] Device válido guardado:', device);
+        } else {
+            console.warn('[createAccessLog] Device rechazado - campos inválidos:', {
+                type: typeof device.type,
+                vendor: typeof device.vendor,
+                model: typeof device.model,
+                device
+            });
         }
+    } else {
+        console.warn('[createAccessLog] Device no es un objeto válido:', device);
     }
     
-    const hasValidDevice = validDevice || device === undefined;
     const hasValidSuccessful = successful === undefined || typeof successful === "boolean";
 
-    // Validar campos requeridos - pero loguear en lugar de lanzar error
+    // Validar campos requeridos
     if (!ip || !hasValidUserId || !hasValidAction || !hasValidSuccessful) {
         console.warn("[createAccessLog] Invalid payload - some required fields missing:", {
             hasValidIp: !!ip,
@@ -167,13 +191,17 @@ async function createAccessLog({ ip, userIdOrToken, userId, device, action, succ
 
     if (validDevice) {
         payload.device = validDevice;
+    } else {
+        console.log('[createAccessLog] No se agregó device al payload');
     }
 
     if (successful !== undefined) {
         payload.successful = successful;
     }
 
+    console.log('[createAccessLog] Payload final:', payload);
     const log = await AccessLog.create(payload);
+    console.log('[createAccessLog] Log creado:', log._id);
     return log;
 }
 

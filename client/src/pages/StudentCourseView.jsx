@@ -5,9 +5,7 @@ import { getSessionUser } from '../services/session';
 import '../styles/student-course-view.css';
 
 /**
- * =====================================================================
  * STUDENTCOURSEVIEW.JSX - Vista de Curso para Estudiantes Matriculados
- * =====================================================================
  * 
  * Propósito:
  * Pantalla principal para estudiantes que ya están matriculados en un curso.
@@ -169,9 +167,7 @@ export default function EnrolledCourse() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // ============================================
   // TAB NAVIGATION WITH QUERY PARAMS
-  // ============================================
   // Los tabs están soportados por query params (?tab=content, ?tab=assessments, etc.)
   // Esto permite que los usuarios puedan bookmarkear/compartir URLs con tab específico
   const allowedTabs = ['content', 'participants', 'assessments', 'info'];
@@ -198,9 +194,7 @@ export default function EnrolledCourse() {
     }
   }, [requestedTab]);
 
-  // ============================================
   // DATA LOADING
-  // ============================================
   const currentUser = useMemo(() => getCurrentUser(), []);
   const currentUserId = String(currentUser.id || currentUser.username || 'anonymous-user');
 
@@ -303,9 +297,7 @@ export default function EnrolledCourse() {
     return map;
   }, [results]);
 
-  // ============================================
   // VALIDATIONS & ACCESS CONTROL
-  // ============================================
   
   if (loadingCourse) {
     return (

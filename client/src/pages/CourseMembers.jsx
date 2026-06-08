@@ -4,9 +4,7 @@ import { courseService, userService } from '../services/auth';
 import '../styles/course-members.css';
 
 /**
- * =====================================================================
  * COURSEMEMBERS.JSX - Gestión de Miembros del Curso (Profesor)
- * =====================================================================
  * 
  * Propósito:
  * Mostrar lista de todos los miembros del curso:

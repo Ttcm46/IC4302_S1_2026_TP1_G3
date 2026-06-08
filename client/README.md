@@ -1,6 +1,6 @@
 # TEC Digitalito
 
-Proyecto de pruebas enfocado en frontend con React + Vite.
+Frontend con React + Vite.
 
 ## Requisitos
 
@@ -37,13 +37,3 @@ npm run build
 ```bash
 npm run preview
 ```
-
-## Estructura relevante
-
-- `client/`: aplicacion React
-- `client/src/data/courseStore.js`: capa temporal de datos mock y almacenamiento local para pruebas de UI
-- `client/src/services/api.js`: configuracion de cliente HTTP para la futura integracion con backend
-
-## Nota
-
-Actualmente la experiencia de cursos y gestion usa datos mock en frontend mediante `localStorage`. Cuando se integre el backend, esa capa debe reemplazarse o conectarse a servicios reales sin cambiar el flujo principal de la interfaz.

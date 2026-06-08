@@ -5,19 +5,6 @@ import { validatePassword } from '../../utils/passwordValidation';
 import '../../styles/auth.css';
 
 /**
- * CAMBIOS DE SEGURIDAD EN ESTA PÁGINA:
- * 
- * 1. VALIDACIÓN DE CONTRASEÑA AGREGADA:
- *    Se valida que la nueva contraseña cumpla con la política fuerte:
- *    - Mínimo 8 caracteres
- *    - Incluir mayúscula, minúscula, número, símbolo
- *    - Validación en cliente (retroalimentación inmediata) y servidor (seguridad)
- *    Status: IMPLEMENTADO
- * 
-
- */
-
-/**
  * Página de Cambio de Contraseña
  * 
  * Flujo:

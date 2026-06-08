@@ -4,20 +4,6 @@ import { authService } from '../services/auth';
 import { clearSession, isAuthenticated, getSessionUser } from '../services/session';
 import '../styles/layout.css';
 
-/**
- * FALTANTES DE SEGURIDAD EN CIERRE DE SESIÓN:
- * 
- * 1. CIERRE PARCIAL (línea 10-14):
- *    La app limpia localStorage y redirige a '/', pero no invalida tokens
- *    de forma autoritativa en el servidor. Requisito: logout debe revocar
- *    tokens en backend para que no puedan usarse luego.
- *    TODO: Enviar solicitud POST /auth/logout al servidor para blacklist del token.
- * 
- * 2. REDIRECCIÓN INCORRECTA:
- *    Redirige a '/' (página de bienvenida) pero requisito pide redirigir a /login.
- *    TODO: Cambiar redirección a '/login' después de logout exitoso.
- */
-
 export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();

@@ -4,6 +4,37 @@ import { userService, courseService } from '../services/auth';
 import { getSessionUser } from '../services/session';
 import '../styles/community.css';
 
+/**
+ * Community.jsx - Sistema de Red Social y Conexiones entre Usuarios
+ * 
+ * Propósito:
+ * Permitir que los usuarios descubran otros usuarios, envíen solicitudes de amistad,
+ * administren sus amigos y visualicen los cursos en los que participan mutuamente.
+ * 
+ * Características:
+ * - Búsqueda de usuarios por nombre de usuario o nombre completo
+ * - Sistema de solicitudes de amistad (enviar, aceptar, rechazar)
+ * - Panel de solicitudes pendientes con notificación de cantidad
+ * - Visualización de cursos como estudiante y docente (solo para amigos)
+ * - Carrusel horizontal de cursos con scroll y controles de navegación
+ * - Polling automático cada 10 segundos para actualizar solicitudes de amistad
+ * - Prevención de acceso: no mostrar cursos a usuarios que no son amigos
+ * 
+ * Flujo:
+ * 1. Cargar lista de usuarios, amigos confirmados y solicitudes pendientes
+ * 2. Usuario busca y selecciona a otro usuario
+ * 3. Mostrar opciones: agregar amigo, aceptar solicitud o ya son amigos
+ * 4. Si son amigos: cargar y mostrar cursos compartidos en carrusel horizontal
+ * 5. Si no son amigos: mostrar aviso de que deben ser amigos para ver cursos
+ * 6. Actualizar estado de solicitudes en segundo plano cada 10 segundos
+ */
+
+
+// Función mapUserRow(raw)
+// Normaliza un usuario recibido del backend a la estructura interna del frontend.
+// Extrae datos de la respuesta, usa fallbacks para campos faltantes (avatar, fullName).
+// El backend puede devolver datos en diferentes formatos; esta función asegura consistencia.
+
 function mapUserRow(raw) {
   const user = raw?.data || raw;
   if (!user) return null;
@@ -16,8 +47,12 @@ function mapUserRow(raw) {
 }
 
 /**
- * HorizontalCarousel - Componente reutilizable del Dashboard
- * Muestra una lista de items en scroll horizontal con controles de navegación
+ * Componente HorizontalCarousel
+ * 
+ * Renderiza una lista de items en un contenedor scroll horizontal con botones de navegación.
+ * Usa useRef para acceder al elemento track, ResizeObserver para detectar cambios de tamaño,
+ * y administra visibilidad de botones según posición de scroll.
+ * Reutilizable para mostrar cursos, listas de usuarios u otros items en carrusel.
  */
 function HorizontalCarousel({
   items,
@@ -118,7 +153,14 @@ export default function Community() {
   const currentUser = getSessionUser() || {};
   const selectedId = searchParams.get('userId');
   
-  // Filtrar usuarios y encontrar el seleccionado
+  /**
+   * Función interna: filteredUsers
+   * 
+   * Filtra la lista de usuarios por búsqueda y excluye al usuario actual.
+   * Usa useMemo para evitar cálculos innecesarios, busca en username y fullName.
+   * Optimizar renderizado y asegurar que el usuario no se ve a sí mismo en la lista.
+   */
+
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
     return users.filter((u) => {
@@ -132,7 +174,15 @@ export default function Community() {
     return filteredUsers.find((u) => String(u.id) === String(selectedId)) || filteredUsers[0] || null;
   }, [filteredUsers, selectedId]);
 
-  // Cargar usuarios, amigos y solicitudes
+  /**
+   * Función interna: loadData (dentro de useEffect)
+   * 
+   * Carga usuarios, amigos, solicitudes pendientes y solicitudes enviadas en paralelo.
+   * Usa Promise.all para cargar datos simultáneamente, enriquece solicitudes pendientes
+   *       con información del perfil del usuario.
+   * Inicializa el estado completo sin bloquear la UI.
+   */
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -194,7 +244,14 @@ export default function Community() {
 
     loadData();
 
-    // Poll pending + sent requests every 10 seconds
+  /**
+   * Función interna: pollRequests (dentro de useEffect)
+   * 
+   * Verifica periódicamente si hay nuevas solicitudes de amistad cada 10 segundos.
+   * Hace polling del backend, compara IDs para detectar cambios, actualiza estado.
+   * Mantiene el estado sincronizado sin recargar toda la página.
+   */
+
     const pollRequests = async () => {
       if (!currentUser.id) return;
       try {
@@ -249,8 +306,15 @@ export default function Community() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cargar cursos del usuario seleccionado cuando cambia
-  // Solo mostrar cursos si el usuario actual es amigo del seleccionado
+  
+  /**
+   * Función interna: loadUserCourses (dentro de useEffect)
+   * 
+   * Carga los cursos del usuario seleccionado pero solo si son amigos.
+   * Verifica amistad primero, carga cursos, separa en estudiante/docente, filtra publicados.
+   * No muestra cursos a usuarios que no son amigos.
+   */
+
   useEffect(() => {
     const loadUserCourses = async () => {
       if (!selectedUser || !selectedUser.id) {
@@ -297,6 +361,10 @@ export default function Community() {
     loadUserCourses();
   }, [selectedUser, friendIds]);
 
+  // Función handleAccept(fromUserId)
+  // Acepta una solicitud de amistad recibida.
+  // Llama al servicio, elimina de solicitudes pendientes, agrega a amigos.
+  // Permite al usuario confirmar una amistad solicitada.
   const handleAccept = async (fromUserId) => {
     try {
       await userService.acceptFriendRequest(fromUserId);
@@ -307,6 +375,10 @@ export default function Community() {
     }
   };
 
+  // Función handleReject(fromUserId)
+  // Rechaza una solicitud de amistad recibida.
+  // Llama al servicio, elimina de solicitudes pendientes.
+  // Permite al usuario descartar una solicitud de amistad.
   const handleReject = async (fromUserId) => {
     try {
       await userService.rejectFriendRequest(fromUserId);

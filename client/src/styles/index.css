@@ -18,6 +18,12 @@ body {
   color: #333;
 }
 
+body,
+body * {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 /* Loading screen & spinner */
 .loading-screen {
   display: flex;
@@ -173,6 +179,9 @@ a:hover {
   border-radius: 0.25rem;
   font-size: 1rem;
   font-family: inherit;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .form-group input:focus,

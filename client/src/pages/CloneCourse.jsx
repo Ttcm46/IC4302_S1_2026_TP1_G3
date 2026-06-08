@@ -335,7 +335,7 @@ export default function CloneCourse() {
 
             {isSubmitting && (
               <div className="clone-submitting-message">
-                <p>⏳ Clonando curso... Por favor espera a que se complete.</p>
+                <p>Clonando curso... Por favor espera a que se complete.</p>
               </div>
             )}
 

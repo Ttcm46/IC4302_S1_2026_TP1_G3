@@ -4,9 +4,7 @@ import { courseService } from "../services/auth";
 import "../styles/create-course.css";
 
 /**
- * =====================================================================
  * CREATECOURSE.JSX - Formulario para Crear Nuevo Curso
- * =====================================================================
  * 
  * Propósito:
  * Interfaz para que un profesor cree un nuevo curso con:

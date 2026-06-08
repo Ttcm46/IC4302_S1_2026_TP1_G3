@@ -1,19 +1,25 @@
 import api from './api';
 import { getAccessToken, getSessionUser } from './session';
 
-// [FRONTEND-ONLY] Función auxiliar para leer cookies
-// Se usa como fallback en login si el backend falla con un error asíncrono no capturado
+// auth.js
+// Servicio de cliente para autenticación, gestión de usuarios, cursos,
+// evaluaciones, sesiones y mensajería. Incluye helpers para cookies,
+// almacenamiento local y mapeo de respuestas del backend.
+
+// Lee una cookie por nombre y devuelve su valor decodificado.
 function readCookie(name) {
   const match = document.cookie.split('; ').find((c) => c.startsWith(name + '='));
   return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
 }
 
+// Crea un Error consistente con la estructura de error esperada del API.
 function createApiError(message, status = 400) {
   const err = new Error(message);
   err.response = { status, data: { error: message } };
   return err;
 }
 
+// Intenta parsear un valor JSON y devuelve un fallback si no es válido.
 function parseJsonSafely(value, fallback = null) {
   if (typeof value !== 'string') return value ?? fallback;
   try {
@@ -23,6 +29,7 @@ function parseJsonSafely(value, fallback = null) {
   }
 }
 
+// Normaliza un objeto de usuario recibido del backend a la forma usada por el frontend.
 function mapBackendUser(user) {
   if (!user) return null;
   return {
@@ -36,6 +43,7 @@ function mapBackendUser(user) {
   };
 }
 
+// Devuelve el usuario actual almacenado en sesión o un objeto vacío si no existe.
 function getCurrentUser() {
   return getSessionUser() || {};
 }
@@ -45,6 +53,8 @@ const COURSE_OVERRIDES_KEY = 'tecdigitalito_course_overrides_v1';
 const DELETED_COURSES_KEY = 'tecdigitalito_deleted_courses_v1';
 const DELETED_ASSESSMENTS_KEY = 'tecdigitalito_deleted_assessments_v1';
 const SECTION_COURSE_INDEX_KEY = 'tecdigitalito_section_course_index_v1';
+
+// Lee un objeto JSON desde localStorage y devuelve un objeto vacío si falla.
 function readStoredObject(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -56,6 +66,7 @@ function readStoredObject(key) {
   }
 }
 
+// Guarda un objeto serializado en localStorage sin romper la aplicación si falla.
 function writeStoredObject(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -64,14 +75,17 @@ function writeStoredObject(key, value) {
   }
 }
 
+// Lee el mapa de visibilidad de cursos desde localStorage.
 function readCourseVisibilityMap() {
   return readStoredObject(COURSE_VISIBILITY_KEY);
 }
 
+// Guarda el mapa de visibilidad de cursos en localStorage.
 function writeCourseVisibilityMap(map) {
   writeStoredObject(COURSE_VISIBILITY_KEY, map);
 }
 
+// Devuelve el estado de publicación persistido de un curso, si existe.
 function getPersistedCourseVisibility(courseCode) {
   if (!courseCode) return undefined;
   const visibilityMap = readCourseVisibilityMap();
@@ -79,6 +93,7 @@ function getPersistedCourseVisibility(courseCode) {
   return typeof value === 'boolean' ? value : undefined;
 }
 
+// Guarda si un curso está publicado o no en el estado local.
 function setPersistedCourseVisibility(courseCode, isPublished) {
   if (!courseCode) return;
   const visibilityMap = readCourseVisibilityMap();
@@ -86,10 +101,12 @@ function setPersistedCourseVisibility(courseCode, isPublished) {
   writeCourseVisibilityMap(visibilityMap);
 }
 
+// Lee la configuración local de overrides de curso desde el almacenamiento.
 function readCourseOverrideMap() {
   return readStoredObject(COURSE_OVERRIDES_KEY);
 }
 
+// Devuelve los cambios de curso guardados localmente como override.
 function getPersistedCourseOverride(courseCode) {
   if (!courseCode) return null;
   const overrideMap = readCourseOverrideMap();
@@ -97,6 +114,7 @@ function getPersistedCourseOverride(courseCode) {
   return value && typeof value === 'object' ? value : null;
 }
 
+// Guarda los cambios locales de metadatos de un curso sin afectar el backend.
 function setPersistedCourseOverride(courseCode, updates) {
   if (!courseCode || !updates || typeof updates !== 'object') return;
   const overrideMap = readCourseOverrideMap();
@@ -107,15 +125,18 @@ function setPersistedCourseOverride(courseCode, updates) {
   writeStoredObject(COURSE_OVERRIDES_KEY, overrideMap);
 }
 
+// Lee el mapa de cursos eliminados guardado en localStorage.
 function readDeletedCoursesMap() {
   return readStoredObject(DELETED_COURSES_KEY);
 }
 
+// Indica si un curso ha sido marcado como eliminado localmente.
 function isCourseDeleted(courseCode) {
   if (!courseCode) return false;
   return readDeletedCoursesMap()[String(courseCode)] === true;
 }
 
+// Marca o desmarca un curso como eliminado en el estado local.
 function setCourseDeleted(courseCode, deleted = true) {
   if (!courseCode) return;
   const deletedMap = readDeletedCoursesMap();
@@ -123,10 +144,12 @@ function setCourseDeleted(courseCode, deleted = true) {
   writeStoredObject(DELETED_COURSES_KEY, deletedMap);
 }
 
+// Lee el mapa de evaluaciones eliminadas guardado en localStorage.
 function readDeletedAssessmentsMap() {
   return readStoredObject(DELETED_ASSESSMENTS_KEY);
 }
 
+// Comprueba si una evaluación ha sido marcada como eliminada localmente para un curso.
 function isAssessmentDeleted(courseCode, assessmentId) {
   if (!courseCode || !assessmentId) return false;
   const deletedMap = readDeletedAssessmentsMap();
@@ -134,6 +157,7 @@ function isAssessmentDeleted(courseCode, assessmentId) {
   return Array.isArray(courseDeleted) && courseDeleted.includes(String(assessmentId));
 }
 
+// Marca o desmarca una evaluación como eliminada localmente para un curso.
 function setAssessmentDeleted(courseCode, assessmentId, deleted = true) {
   if (!courseCode || !assessmentId) return;
   const deletedMap = readDeletedAssessmentsMap();
@@ -148,10 +172,13 @@ function setAssessmentDeleted(courseCode, assessmentId, deleted = true) {
   writeStoredObject(DELETED_ASSESSMENTS_KEY, deletedMap);
 }
 
+// Lee el índice de sección a curso desde localStorage.
 function readSectionCourseIndex() {
   return readStoredObject(SECTION_COURSE_INDEX_KEY);
 }
 
+// Registra el mapeo de todas las secciones de un curso a localStorage.
+// Esto permite identificar el curso padre de una sección cuando se carga una sección aislada.
 function registerCourseSections(courseCode, sections) {
   if (!courseCode || !Array.isArray(sections)) return;
   const sectionMap = readSectionCourseIndex();
@@ -168,12 +195,14 @@ function registerCourseSections(courseCode, sections) {
   writeStoredObject(SECTION_COURSE_INDEX_KEY, sectionMap);
 }
 
+// Devuelve el ID de curso asociado a una sección mediante el índice local.
 function getCourseIdForSection(sectionId) {
   if (!sectionId) return null;
   const sectionMap = readSectionCourseIndex();
   return sectionMap[String(sectionId)] || null;
 }
 
+// Normaliza un recurso de sección asegurando un id, tipo y título válidos.
 function normalizeResource(resource, sectionId, index) {
   if (!resource || typeof resource !== 'object') {
     return {
@@ -192,6 +221,7 @@ function normalizeResource(resource, sectionId, index) {
   };
 }
 
+// Busca recursivamente una sección por su ID dentro de un árbol de secciones.
 function findSectionById(sections, sectionId) {
   for (const section of sections || []) {
     if (section?.id === sectionId) {
@@ -205,12 +235,15 @@ function findSectionById(sections, sectionId) {
   return null;
 }
 
+// Carga un curso desde el backend y lo mapea al formato usado por el frontend.
 async function loadMappedCourse(courseId) {
   const currentUser = getCurrentUser();
   const response = await api.get('/courses', { params: { classCode: courseId } });
   return mapBackendCourse(response.data?.details || null, currentUser.id || currentUser.username);
 }
 
+// Obtiene el contexto completo de un curso y sección dado el ID de sección.
+// Esto es necesario cuando se edita o se muestra una sección independiente.
 async function loadSectionContext(sectionId) {
   const courseId = getCourseIdForSection(sectionId);
   if (!courseId) {
@@ -226,6 +259,7 @@ async function loadSectionContext(sectionId) {
   return { course, section };
 }
 
+// Construye la descripción serializada de una sección para enviarla al backend.
 function buildSectionDescription(sectionInput) {
   return JSON.stringify({
     title: sectionInput.title,
@@ -235,6 +269,7 @@ function buildSectionDescription(sectionInput) {
   });
 }
 
+// Persiste los cambios de una sección en el nodo correspondiente del backend.
 async function persistSection(sectionId, sectionInput) {
   return api.put('/courses/section', {
     description: buildSectionDescription(sectionInput)
@@ -243,6 +278,7 @@ async function persistSection(sectionId, sectionInput) {
   });
 }
 
+// Mapea errores de login del backend a mensajes de usuario legibles.
 function mapLoginError(err) {
   const backendMessage = err?.response?.data?.error || err?.response?.data?.message || '';
   const status = err?.response?.status;
@@ -276,6 +312,7 @@ function mapLoginError(err) {
   return { message: backendMessage || 'Error inesperado al iniciar sesion.', status: status || 500 };
 }
 
+// Mapea la estructura de curso recibida desde el backend al formato usado por el frontend.
 function mapBackendCourse(course, currentUserId = null) {
   if (!course) return null;
 
@@ -434,6 +471,7 @@ function mapBackendCourse(course, currentUserId = null) {
 }
 
 export const authService = {
+  // Registra un nuevo usuario con los datos proporcionados.
   async register(data) {
     const payload = {
       name: String(data.fullName || '').trim(),
@@ -453,6 +491,7 @@ export const authService = {
     }
   },
 
+  // Inicia sesión con usuario y contraseña, usando fallback de cookie si es necesario.
   async login(username, password, rememberMe = false) {
     try {
       const response = await api.post('/login', { username, password, rememberMe });
@@ -504,13 +543,12 @@ export const authService = {
     return api.post('/users/reset', { email });
   },
 
-  // Envía el token extraído del enlace del email y la nueva contraseña.
-  // El backend valida que el token exista en Redis (no expirado, no usado),
-  // actualiza la contraseña y elimina el token para garantizar uso único.
+  // Completa el flujo de restablecimiento de contraseña usando el token enviado por correo.
   async resetPassword(token, newPassword) {
     return api.post('/users/reset/confirm', { token, newPassword });
   },
 
+  // Cambia la contraseña del usuario autenticado tras verificar la contraseña actual.
   async changePassword(currentPassword, newPassword) {
     const currentUser = getCurrentUser();
     if (!currentUser.username || !currentUser.id) {
@@ -529,22 +567,26 @@ export const authService = {
     return api.put('/users/update/password', { newpassword: newPassword }, { params: { id: currentUser.id } });
   },
 
+  // Cierra la sesión del usuario actual enviando el token de logout al backend.
   async logout() {
     const token = getAccessToken();
     return api.post('/logout', { token });
   },
 
+  // Refresca el token de acceso en el frontend sin llamar al backend.
   async refreshToken(refreshToken) {
     return { data: { accessToken: refreshToken } };
   }
 };
 
 export const userService = {
+  // Obtiene el perfil de un usuario por su ID.
   async getProfile(id) {
     const response = await api.get(`/users/details`, { params: { userId: id } });
     return { data: { user: mapBackendUser(response.data?.data) } };
   },
 
+  // Actualiza los datos del perfil del usuario con los campos proporcionados.
   async updateProfile(id, data) {
     const payload = {
       username: data.username,
@@ -558,32 +600,45 @@ export const userService = {
     return { data: { user: mapBackendUser(response.data?.user) } };
   },
 
+  // Busca usuarios por nombre de usuario.
   searchUsers: (query = '') => api.get('/users', { params: query ? { field: 'username', value: query } : {} }),
+
+  // Envía una solicitud de amistad al usuario indicado.
   sendFriendRequest: (friendId) => {
     const userId = getCurrentUser().id;
     return api.post('/users/friends/request/', { userId, friendId });
   },
+  // Obtiene la lista de amigos confirmados de un usuario.
   getFriends: (userId) => api.get('/users/friends/', { params: { id: userId } }),
+
+  // Obtiene las solicitudes de amistad pendientes recibidas.
   getPendingRequests: () => {
     const userId = getCurrentUser().id;
     return api.get('/users/friends/requests/', { params: { id: userId } });
   },
+  // Obtiene las solicitudes de amistad enviadas por el usuario actual.
   getSentRequests: () => {
     const userId = getCurrentUser().id;
     return api.get('/users/friends/sent/', { params: { id: userId } });
   },
+
+  // Elimina una amistad existente.
   removeFriend: (friendId) => {
     const userId = getCurrentUser().id;
     return api.delete('/users/friends/', { data: { userId, friendId } });
   },
+  // Acepta una solicitud de amistad recibida.
   acceptFriendRequest: (fromUserId) => {
     const userId = getCurrentUser().id;
     return api.post('/users/friends/accept/', { userId, fromUserId });
   },
+
+  // Rechaza una solicitud de amistad recibida.
   rejectFriendRequest: (fromUserId) => {
     const userId = getCurrentUser().id;
     return api.post('/users/friends/reject/', { userId, fromUserId });
   },
+  // Obtiene los cursos en los que un usuario está inscrito o los cursos que creó.
   async getUserCourses(userId) {
     const currentUser = getCurrentUser();
     try {
@@ -614,10 +669,12 @@ export const userService = {
       };
     }
   },
+  // Obtiene los registros de acceso de un usuario.
   getAccessLogs: (userId) => api.get('/users/log/', { params: { id: userId } })
 };
 
 export const courseService = {
+  // Crea un nuevo curso con los datos proporcionados por el usuario actual.
   async createCourse(data) {
     const currentUser = getCurrentUser();
     const creatorId = currentUser.id || currentUser.username || 'anonymous';
@@ -649,6 +706,7 @@ export const courseService = {
     };
   },
 
+  // Obtiene todos los cursos disponibles y los mapea al formato del frontend.
   async getCourses() {
     const currentUser = getCurrentUser();
     const response = await api.get('/courses');
@@ -662,8 +720,8 @@ export const courseService = {
     };
   },
 
-  // Conexión CreateCourse: Valida que un código de curso no esté duplicado
-  // Usado en tiempo real en el formulario para mostrar advertencia al usuario
+  // Conexión CreateCourse: Valida que un código de curso no esté duplicado.
+  // Usado en tiempo real en el formulario para mostrar advertencia al usuario.
   async checkCodeExists(code) {
     try {
       const response = await api.get('/courses/check-code', { params: { code } });
@@ -674,6 +732,7 @@ export const courseService = {
     }
   },
 
+  // Obtiene un curso por su ID y lo mapea al formato del frontend.
   async getCourse(id) {
     const currentUser = getCurrentUser();
     const response = await api.get('/courses', { params: { classCode: id } });
@@ -684,6 +743,7 @@ export const courseService = {
     };
   },
 
+  // Obtiene el profesor y los estudiantes matriculados de un curso.
   async getCourseMembers(id) {
     const currentUser = getCurrentUser();
     const response = await api.get('/courses', { params: { classCode: id } });
@@ -701,6 +761,7 @@ export const courseService = {
     };
   },
 
+  // Actualiza los metadatos de un curso y mantiene una copia local de los cambios.
   async updateCourse(id, data) {
     // Conexión CourseEditor: Llamar al backend para actualizar metadatos del curso
     // PUT /courses?classCode=ID persiste cambios en Neo4j
@@ -732,6 +793,7 @@ export const courseService = {
     };
   },
 
+  // Cambia el estado de publicación de un curso y lo persiste localmente.
   async publishCourse(id, isPublished) {
     // Conexión CourseEditor: Llamar al backend para actualizar estado de publicación
     // PUT /courses/status?id=CLASSCODE persiste cambios en Neo4j
@@ -746,12 +808,14 @@ export const courseService = {
     return { data: { success: true, isPublished: !!isPublished } };
   },
 
+  // Elimina un curso y lo marca como borrado en el estado local.
   async deleteCourse(id) {
     await api.delete('/courses', { params: { classCode: id } });
     setCourseDeleted(id, true);
     return { data: { success: true, id } };
   },
 
+  // Crea una nueva sección en un curso, guardando su dependencia lógica en la descripción.
   async createSection(courseId, sectionInput) {
     const sectionId = sectionInput.sectionId || `sec_${Date.now()}`;
 
@@ -767,6 +831,7 @@ export const courseService = {
     });
   },
 
+  // Actualiza los datos de una sección existente.
   async updateSection(sectionId, sectionInput) {
     return persistSection(sectionId, sectionInput);
   },
@@ -780,6 +845,7 @@ export const courseService = {
     });
   },
 
+  // Agrega un recurso a una sección y guarda los cambios en el backend.
   async addSectionResource(sectionId, resourceInput) {
     const { section } = await loadSectionContext(sectionId);
     const nextResources = [
@@ -798,6 +864,7 @@ export const courseService = {
     });
   },
 
+  // Actualiza un recurso específico dentro de una sección.
   async updateSectionResource(sectionId, resourceId, resourceInput) {
     const { section } = await loadSectionContext(sectionId);
     const currentResources = Array.isArray(section.resources) ? section.resources : [];
@@ -815,6 +882,7 @@ export const courseService = {
     });
   },
 
+  // Elimina un recurso de una sección y persiste el cambio.
   async deleteSectionResource(sectionId, resourceId) {
     const { section } = await loadSectionContext(sectionId);
     const nextResources = (Array.isArray(section.resources) ? section.resources : [])
@@ -828,6 +896,7 @@ export const courseService = {
     });
   },
 
+  // Clona un curso existente creando uno nuevo con los datos proporcionados.
   async cloneCourse(id, data) {
     const currentUser = getCurrentUser();
     // Conexión CloneCourse: Envía metadatos del nuevo curso al backend
@@ -850,9 +919,11 @@ export const courseService = {
     });
   },
 
+  // Obtiene los estudiantes matriculados en un curso.
   getStudents: (id) => api.get('/courses/students', { params: { classCode: id } })
 };
 
+// Crea preguntas normalizadas a partir de los datos de evaluación recibidos del formulario.
 function createQuestionsFromAssessment(assessment, evalId) {
   return (assessment.questions || []).map((question, qIndex) => ({
     id: question.id || `${evalId}-q${qIndex + 1}`,
@@ -866,6 +937,7 @@ function createQuestionsFromAssessment(assessment, evalId) {
 }
 
 export const assessmentService = {
+  // Crea una nueva evaluación para un curso dado.
   async createAssessment(courseId, assessmentInput) {
     const evalId = assessmentInput.id || `eval_${Date.now()}`;
     const content = {
@@ -886,6 +958,7 @@ export const assessmentService = {
     });
   },
 
+  // Actualiza una evaluación existente con los datos modificados.
   async updateAssessment(courseId, evalId, assessmentInput) {
     // Conexión AssessmentEditor: Conecta al endpoint PUT /courses/evaluation del backend.
     // Antes: Lanzaba error 501 (no soportado).
@@ -907,6 +980,7 @@ export const assessmentService = {
     });
   },
 
+  // Elimina una evaluación de un curso y marca la evaluación como borrada localmente.
   deleteAssessment: async (courseId, assessmentId) => {
     // Conexión AssessmentEditor: Llamar al backend para eliminar la evaluación completamente.
     // DELETE /courses/evaluation?evalId=ID elimina la evaluación de Neo4j.
@@ -921,6 +995,7 @@ export const assessmentService = {
     return { data: { success: true, courseId, assessmentId } };
   },
 
+  // Envía los resultados de una evaluación completada al backend.
   async submitAssessment(courseId, evalId, resultInput) {
     const currentUser = getCurrentUser();
     const userId = String(currentUser.id || currentUser.username || 'anonymous-user');
@@ -943,6 +1018,7 @@ export const assessmentService = {
     return { data: { result: response.data?.result || result } };
   },
 
+  // Obtiene el resultado de una evaluación para un usuario específico.
   async getAssessmentResult(courseId, evalId, userId) {
     const currentUser = getCurrentUser();
     const effectiveUserId = String(userId || currentUser.id || currentUser.username || 'anonymous-user');
@@ -951,11 +1027,13 @@ export const assessmentService = {
     return { data: { result: response.data?.result || null } };
   },
 
+  // Obtiene todas las entregas de una evaluación.
   async getAssessmentSubmissions(courseId, evalId) {
     const response = await api.get('/courses/grades', { params: { evalId } });
     return { data: { results: response.data?.results || [] } };
   },
 
+  // Obtiene los resultados de un curso para un usuario determinado.
   async getCourseResultsForUser(courseId, userId) {
     const currentUser = getCurrentUser();
     const effectiveUserId = String(userId || currentUser.id || currentUser.username || 'anonymous-user');
@@ -966,6 +1044,7 @@ export const assessmentService = {
 };
 
 export const enrollmentService = {
+  // Matricula al usuario actual en un curso.
   async enrollCourse(courseId) {
     const currentUser = getCurrentUser();
     const studentId = currentUser.id || currentUser.username;
@@ -982,6 +1061,7 @@ export const enrollmentService = {
       throw err;
     }
   },
+  // Obtiene los cursos en los que el usuario actual está matriculado.
   async getMyCourses() {
     const currentUser = getCurrentUser();
     const id = currentUser.id || currentUser.username || '';
@@ -995,6 +1075,7 @@ export const enrollmentService = {
     return { data: { courses: courses.map((course) => mapBackendCourse(course, id)).filter(Boolean) } };
   },
 
+  // Obtiene los cursos que el usuario actual imparte.
   async getTeachingCourses() {
     const currentUser = getCurrentUser();
     const id = currentUser.id || currentUser.username || '';
@@ -1008,27 +1089,32 @@ export const enrollmentService = {
 };
 
 export const messageService = {
+  // Envía un mensaje a otro usuario.
   sendMessage: (toUserId, content) => {
     const fromUserId = getCurrentUser().id;
     return api.post('/messages/send/', { fromUserId, toUserId, content });
   },
 
+  // Obtiene los mensajes recibidos del buzón del usuario actual.
   getInbox: () => {
     const user = getCurrentUser();
     const userId = user.id || user.username;
     return api.get('/messages/inbox/', { params: { id: userId } });
   },
 
+  // Obtiene la conversación entre el usuario actual y otro usuario.
   getConversation: (otherUserId) => {
     const userId = getCurrentUser().id;
     return api.post('/messages/conversation/', { userId, otherUserId });
   },
 
+  // Marca como leídos los mensajes de una conversación con otro usuario.
   markAsRead: (otherUserId) => {
     const userId = getCurrentUser().id;
     return api.post('/messages/mark-as-read', { userId, otherUserId });
   },
 
+  // Obtiene el conteo de mensajes no leídos contra otro usuario.
   getUnreadCount: (otherUserId) => {
     const userId = getCurrentUser().id;
     return api.post('/messages/unread-count', { userId, otherUserId });

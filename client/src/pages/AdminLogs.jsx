@@ -3,7 +3,8 @@ import api from '../services/api';
 import '../styles/admin-logs.css';
 
 /**
- * PÁGINA: AdminLogs
+ * AdminLogs.jsx - Panel de administración para registros de auditoría
+ * 
  * 
  * Propósito: Panel de administración para visualizar registros de auditoría
  * Requiere: Usuario con rol "admin"
@@ -16,11 +17,12 @@ import '../styles/admin-logs.css';
  * 
  * Columnas mostradas:
  * 1. IP - Dirección IP de acceso
- * 2. Usuario - ID del usuario que intentó acceso
- * 3. Dispositivo - Tipo de dispositivo, navegador
- * 4. Acción - "login" o "logout"
- * 5. Estado - Verde (exitoso) o Rojo (fallido)
- * 6. Fecha/Hora - Timestamp del evento
+ * 2. ID Usuario - ID del usuario que intentó acceso
+ * 3. Username - Nombre de usuario asociado al ID
+ * 4. Dispositivo - Tipo de dispositivo, navegador
+ * 5. Acción - "login" o "logout"
+ * 6. Estado - Verde (exitoso) o Rojo (fallido)
+ * 7. Fecha/Hora - Timestamp del evento
  */
 
 const AdminLogs = () => {
@@ -41,12 +43,41 @@ const AdminLogs = () => {
   // Estado: Mensaje de error
   const [error, setError] = useState('');
 
+  // Estado: Cache de usernames (userId -> username)
+  const [usernames, setUsernames] = useState({});
+
   // Estado: Filtros aplicados por el usuario
   const [filters, setFilters] = useState({
     userId: '',
     action: '', // '' para todos, 'login', 'logout'
     successful: '' // '' para todos, 'true', 'false'
   });
+
+  /**
+   * FUNCIÓN: fetchUsername
+   * 
+   * Propósito: Obtener el username de un userId y cachearlo
+   */
+  const fetchUsername = async (userId) => {
+    // Si ya está en cache, retornar
+    if (usernames[userId]) {
+      return usernames[userId];
+    }
+
+    try {
+      const response = await api.get(`/users/details?userId=${userId}`);
+      if (response.data?.data?.username) {
+        setUsernames(prev => ({
+          ...prev,
+          [userId]: response.data.data.username
+        }));
+        return response.data.data.username;
+      }
+    } catch (err) {
+      console.warn(`[AdminLogs] No se pudo obtener username para ${userId}:`, err.message);
+    }
+    return null;
+  };
 
   /**
    * FUNCIÓN: fetchLogs
@@ -104,6 +135,19 @@ const AdminLogs = () => {
   useEffect(() => {
     fetchLogs(1);
   }, []);
+
+  /**
+   * EFECTO: Cargar usernames cuando se actualizan los logs
+   */
+  useEffect(() => {
+    if (logs.length > 0) {
+      logs.forEach(log => {
+        if (log.userId && !usernames[log.userId]) {
+          fetchUsername(log.userId);
+        }
+      });
+    }
+  }, [logs]);
 
   /**
    * FUNCIÓN: handleFilterChange
@@ -289,7 +333,8 @@ const AdminLogs = () => {
               <thead>
                 <tr>
                   <th>IP</th>
-                  <th>Usuario</th>
+                  <th>ID Usuario</th>
+                  <th>Username</th>
                   <th>Dispositivo</th>
                   <th>Acción</th>
                   <th>Estado</th>
@@ -301,6 +346,7 @@ const AdminLogs = () => {
                   <tr key={log._id}>
                     <td className="ip">{log.ip}</td>
                     <td className="user-id">{log.userId || '-'}</td>
+                    <td className="username">{usernames[log.userId] || '-'}</td>
                     <td className="device">{formatDevice(log.device)}</td>
                     <td className="action">
                       {log.action === 'login' ? 'Login' : 'Logout'}
